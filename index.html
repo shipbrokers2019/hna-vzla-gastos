@@ -13,7 +13,6 @@
 
 <body class="bg-slate-950 text-slate-100 min-h-screen pb-24 md:pb-8">
     <div class="max-w-6xl mx-auto p-4 md:p-6 space-y-5">
-        <!-- Encabezado -->
         <header
             class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-800 pb-4">
             <div>
@@ -30,30 +29,28 @@
                     <input id="umbralInput" type="number" step="10" value="500"
                         class="w-20 bg-slate-950 text-amber-400 font-semibold px-2 py-0.5 rounded border border-slate-700" />
                 </label>
-                <button onclick="openReport()"
+                <button id="btnOpenReport" type="button"
                     class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs px-4 py-2 rounded-xl">
                     Generar Reporte
                 </button>
             </div>
         </header>
 
-        <!-- Pestañas superiores (visible en escritorio y tablet) -->
         <nav class="hidden md:flex items-center gap-2 bg-slate-900/90 border border-slate-800 p-1.5 rounded-2xl w-fit">
-            <button id="tab-desk-hoy" onclick="switchTab('hoy')"
+            <button id="tab-desk-hoy" type="button" data-tab="hoy"
                 class="tab-desk px-4 py-2 rounded-xl text-sm font-semibold bg-amber-500 text-slate-950">
                 Hoy
             </button>
-            <button id="tab-desk-movimientos" onclick="switchTab('movimientos')"
+            <button id="tab-desk-movimientos" type="button" data-tab="movimientos"
                 class="tab-desk px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-white">
                 Movimientos
             </button>
-            <button id="tab-desk-hitos" onclick="switchTab('hitos')"
+            <button id="tab-desk-hitos" type="button" data-tab="hitos"
                 class="tab-desk px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-white">
                 Hitos y Reporte
             </button>
         </nav>
 
-        <!-- Alerta de umbral -->
         <div id="alertaBanner"
             class="hidden bg-amber-500/15 border border-amber-500/50 text-amber-200 px-4 py-3 rounded-xl text-sm"></div>
 
@@ -85,7 +82,7 @@
                         <p class="text-xs text-slate-400">Movimientos pendientes de soporte o con observación para
                             regularizar primero.</p>
                     </div>
-                    <button onclick="switchTab('movimientos')"
+                    <button type="button" data-tab="movimientos"
                         class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3.5 py-2 rounded-xl font-medium w-fit">
                         + Nuevo Movimiento
                     </button>
@@ -96,7 +93,7 @@
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
                 <div class="flex items-center justify-between">
                     <h2 class="text-base font-bold text-white">Últimos Hitos de Sucursal</h2>
-                    <button onclick="switchTab('hitos')" class="text-xs text-amber-400 hover:underline">Ver
+                    <button type="button" data-tab="hitos" class="text-xs text-amber-400 hover:underline">Ver
                         todos</button>
                 </div>
                 <div id="hoyHitosPreview" class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs"></div>
@@ -149,7 +146,7 @@
                     </div>
                     <div>
                         <label class="block text-xs text-slate-400 mb-1">Moneda</label>
-                        <select id="moneda" onchange="toggleTasa()"
+                        <select id="moneda"
                             class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm">
                             <option value="USD">USD</option>
                             <option value="VES">VES</option>
@@ -207,10 +204,9 @@
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <h2 class="text-lg font-semibold text-white">Bitácora de Movimientos</h2>
                     <div class="flex flex-wrap gap-2">
-                        <input id="filtroTexto" oninput="renderAll()" type="text"
-                            placeholder="Buscar código, contraparte, nota..."
+                        <input id="filtroTexto" type="text" placeholder="Buscar código, contraparte, nota..."
                             class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs" />
-                        <select id="filtroSoporte" onchange="renderAll()"
+                        <select id="filtroSoporte"
                             class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs">
                             <option value="ALL">Todos los soportes</option>
                             <option value="CON_SOPORTE">CON_SOPORTE</option>
@@ -269,14 +265,14 @@
                 <div class="pt-3 border-t border-slate-800 space-y-2">
                     <p class="text-xs font-semibold text-slate-300">Respaldo y Reportes</p>
                     <div class="grid grid-cols-2 gap-2">
-                        <button onclick="exportJSON()"
+                        <button id="btnExportJSON" type="button"
                             class="bg-slate-800 hover:bg-slate-700 text-xs px-3 py-2 rounded-xl border border-slate-700">Exportar
                             JSON</button>
-                        <button onclick="exportCSV()"
+                        <button id="btnExportCSV" type="button"
                             class="bg-slate-800 hover:bg-slate-700 text-xs px-3 py-2 rounded-xl border border-slate-700">Exportar
                             CSV</button>
                     </div>
-                    <button onclick="openReport()"
+                    <button id="btnOpenReport2" type="button"
                         class="w-full bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs px-3 py-2 rounded-xl border border-slate-700 font-medium">
                         Abrir Reporte Ejecutivo
                     </button>
@@ -290,21 +286,20 @@
         </section>
     </div>
 
-    <!-- Barra inferior estilo app móvil (visible en móvil) -->
     <nav
         class="md:hidden fixed bottom-0 inset-x-0 bg-slate-900/95 backdrop-blur border-t border-slate-800 px-2 py-1.5 z-40">
         <div class="max-w-md mx-auto grid grid-cols-3 gap-1 text-center">
-            <button id="tab-mob-hoy" onclick="switchTab('hoy')"
-                class="tab-mob flex flex-col items-center justify-center py-1.5 rounded-xl text-amber-400 font-semibold">
+            <button id="tab-mob-hoy" type="button" data-tab="hoy"
+                class="tab-mob flex flex-col items-center justify-center py-1.5 rounded-xl text-amber-400 font-semibold bg-slate-800/70">
                 <span class="text-base leading-none">📅</span>
                 <span class="text-[11px] mt-1">Hoy</span>
             </button>
-            <button id="tab-mob-movimientos" onclick="switchTab('movimientos')"
+            <button id="tab-mob-movimientos" type="button" data-tab="movimientos"
                 class="tab-mob flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
                 <span class="text-base leading-none">🧾</span>
                 <span class="text-[11px] mt-1">Movimientos</span>
             </button>
-            <button id="tab-mob-hitos" onclick="switchTab('hitos')"
+            <button id="tab-mob-hitos" type="button" data-tab="hitos"
                 class="tab-mob flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
                 <span class="text-base leading-none">📌</span>
                 <span class="text-[11px] mt-1">Hitos</span>
@@ -312,17 +307,17 @@
         </div>
     </nav>
 
-    <!-- Modal de Reporte -->
     <div id="reportModal" class="hidden fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
         <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-5 space-y-4">
             <div class="flex items-center justify-between">
                 <h3 class="text-lg font-bold text-white">Reporte Ejecutivo para Socios / Casa Matriz</h3>
-                <button onclick="closeReport()" class="text-slate-400 hover:text-white text-sm">Cerrar ✕</button>
+                <button id="btnCloseReport" type="button" class="text-slate-400 hover:text-white text-sm">Cerrar
+                    ✕</button>
             </div>
             <textarea id="reportText" rows="14"
                 class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs font-mono text-slate-200"></textarea>
             <div class="flex justify-end gap-2">
-                <button onclick="copyReport()"
+                <button id="btnCopyReport" type="button"
                     class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs px-4 py-2 rounded-lg">Copiar
                     Resumen</button>
             </div>
@@ -335,12 +330,11 @@
         let db;
         let movimientos = [];
         let hitos = [];
-        let activeTab = "hoy";
 
         function switchTab(tabName) {
-            activeTab = tabName;
             ["hoy", "movimientos", "hitos"].forEach((t) => {
                 const panel = document.getElementById(`panel-${t}`);
+                if (!panel) return;
                 if (t === "hitos") {
                     panel.classList.toggle("hidden", t !== tabName);
                     panel.classList.toggle("grid", t === tabName);
@@ -419,57 +413,326 @@
             return `HNA-VZ-${year}-${seq}`;
         }
 
-        document.getElementById("movForm").addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const moneda = document.getElementById("moneda").value;
-            const monto = Number(document.getElementById("monto").value);
-            const tasa = moneda === "VES" ? Number(document.getElementById("tasa").value) : 1;
-            const montoUsd = calcUSD(moneda, monto, tasa);
-            const tipo = document.getElementById("tipo").value;
-            const umbral = Number(document.getElementById("umbralInput").value) || 0;
+        async function regularizar(id) {
+            const mov = movimientos.find((m) => m.id === id);
+            if (!mov) return;
+            mov.estadoSoporte = "CON_SOPORTE";
+            await putItem("movimientos", mov);
+            renderAll();
+        }
 
-            const banner = document.getElementById("alertaBanner");
-            if (tipo !== "APORTE_FONDO" && tipo !== "COBRO_CLIENTE" && umbral > 0 && montoUsd > umbral) {
-                banner.textContent = `Alerta de umbral: el movimiento de $${montoUsd.toFixed(2)} USD supera el umbral configurado de $${umbral.toFixed(2)} USD. Verifica aprobación previa de socios/casa matriz.`;
-                banner.classList.remove("hidden");
-            } else {
-                banner.classList.add("hidden");
+        async function deleteMov(id) {
+            const mov = movimientos.find((m) => m.id === id);
+            const label = mov ? `${mov.id} (${mov.categoria} · $${Number(mov.montoUsd).toFixed(2)})` : id;
+            if (!confirm(`¿Borrar el movimiento ${label}? Esta acción no se puede deshacer.`)) return;
+            await deleteItem("movimientos", id);
+            movimientos = movimientos.filter((m) => m.id !== id);
+            renderAll();
+        }
+
+        async function deleteHito(id) {
+            if (!confirm("¿Borrar este hito de sucursal? Esta acción no se puede deshacer.")) return;
+            await deleteItem("hitos", id);
+            hitos = hitos.filter((h) => h.id !== id);
+            renderHitos();
+        }
+
+        function renderHitos() {
+            const ul = document.getElementById("hitosLista");
+            ul.innerHTML = hitos.map((h) => `
+        <li class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+          <div class="flex justify-between items-center text-amber-300 font-semibold gap-2">
+            <span>${h.frente}</span>
+            <div class="flex items-center gap-3">
+              <span>${h.estado}</span>
+              <button type="button" data-del-hito="${h.id}" class="btn-del-hito text-rose-400 hover:underline font-normal">Borrar</button>
+            </div>
+          </div>
+          <p class="text-slate-300 mt-1">${h.paso}</p>
+          <span class="text-[11px] text-slate-500">${h.fecha}</span>
+        </li>
+      `).join("") || `<li class="text-slate-500">Sin hitos registrados aún.</li>`;
+
+            const preview = document.getElementById("hoyHitosPreview");
+            preview.innerHTML = hitos.slice(0, 4).map((h) => `
+        <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+          <div class="flex justify-between text-amber-300 font-semibold">
+            <span>${h.frente}</span>
+            <span>${h.estado}</span>
+          </div>
+          <p class="text-slate-300 mt-1">${h.paso}</p>
+        </div>
+      `).join("") || `<p class="text-slate-500 col-span-2">Sin hitos registrados aún.</p>`;
+        }
+
+        function renderHoyPendientes() {
+            const box = document.getElementById("hoyPendientesLista");
+            const pendientes = movimientos.filter((m) => m.estadoSoporte !== "CON_SOPORTE");
+            if (!pendientes.length) {
+                box.innerHTML = `<div class="col-span-2 bg-slate-950/70 border border-slate-800 rounded-xl p-4 text-xs text-emerald-300">Todo al día: no tienes movimientos pendientes de soporte ni observados.</div>`;
+                return;
             }
 
-            const item = {
-                id: nextId(),
-                fecha: document.getElementById("fecha").value,
-                tipo,
-                codigoCc: document.getElementById("codigoCc").value.trim().toUpperCase(),
-                categoria: document.getElementById("categoria").value,
-                moneda,
-                monto,
-                tasa,
-                montoUsd,
-                contraparte: document.getElementById("contraparte").value.trim(),
-                estadoSoporte: document.getElementById("estadoSoporte").value,
-                referencia: document.getElementById("referencia").value.trim(),
-                nota: document.getElementById("nota").value.trim()
-            };
+            box.innerHTML = pendientes.map((m) => `
+        <div class="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between gap-3">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <p class="font-bold text-white text-sm">${m.contraparte || m.categoria}</p>
+              <p class="text-xs text-slate-400">${m.categoria} · ${m.codigoCc} · ${m.fecha}</p>
+              ${m.nota ? `<p class="text-xs text-slate-300 mt-1">${m.nota}</p>` : ""}
+            </div>
+            <div class="text-right">
+              <p class="font-bold text-amber-400 text-sm">$${Number(m.montoUsd).toFixed(2)}</p>
+              <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] bg-rose-500/20 text-rose-300">${m.estadoSoporte}</span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
+            <span class="font-mono text-slate-500">${m.id}</span>
+            <div class="flex items-center gap-3">
+              <button type="button" data-reg="${m.id}" class="btn-reg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-semibold px-3 py-1 rounded-lg">
+                Marcar con soporte
+              </button>
+              <button type="button" data-del-mov="${m.id}" class="btn-del-mov text-rose-400 hover:underline">
+                Borrar
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join("");
+        }
 
-            await putItem("movimientos", item);
-            movimientos.unshift(item);
-            e.target.reset();
+        function renderAll() {
+            let fondos = 0, ejecutado = 0, pendiente = 0;
+            movimientos.forEach((m) => {
+                if (m.tipo === "APORTE_FONDO" || m.tipo === "COBRO_CLIENTE") {
+                    fondos += m.montoUsd;
+                } else {
+                    ejecutado += m.montoUsd;
+                    if (m.estadoSoporte !== "CON_SOPORTE") pendiente += m.montoUsd;
+                }
+            });
+            const saldo = fondos - ejecutado;
+
+            document.getElementById("kpiFondos").textContent = `$${fondos.toFixed(2)}`;
+            document.getElementById("kpiEjecutado").textContent = `$${ejecutado.toFixed(2)}`;
+            document.getElementById("kpiSaldo").textContent = `$${saldo.toFixed(2)}`;
+            document.getElementById("kpiPendiente").textContent = `$${pendiente.toFixed(2)}`;
+
+            const q = document.getElementById("filtroTexto").value.toLowerCase();
+            const sup = document.getElementById("filtroSoporte").value;
+            const filtrados = movimientos.filter((m) => {
+                const matchSup = sup === "ALL" || m.estadoSoporte === sup;
+                const matchQ = !q || JSON.stringify(m).toLowerCase().includes(q);
+                return matchSup && matchQ;
+            });
+
+            document.getElementById("movTabla").innerHTML = filtrados.map((m) => `
+        <tr>
+          <td class="py-2 pr-3"><div class="font-mono text-slate-300">${m.id}</div><div class="text-slate-500">${m.fecha}</div></td>
+          <td class="py-2 pr-3"><div class="font-semibold text-white">${m.tipo}</div><div class="text-slate-400">${m.categoria}</div></td>
+          <td class="py-2 pr-3 font-mono text-amber-300">${m.codigoCc}</td>
+          <td class="py-2 pr-3">${m.moneda} ${Number(m.monto).toFixed(2)}</td>
+          <td class="py-2 pr-3 font-semibold">$${Number(m.montoUsd).toFixed(2)}</td>
+          <td class="py-2 pr-3">
+            <span class="px-2 py-0.5 rounded text-[11px] ${m.estadoSoporte === "CON_SOPORTE" ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"}">
+              ${m.estadoSoporte}
+            </span>
+          </td>
+          <td class="py-2 space-x-2 whitespace-nowrap">
+            ${m.estadoSoporte !== "CON_SOPORTE" ? `<button type="button" data-reg="${m.id}" class="btn-reg text-amber-400 hover:underline">Regularizar</button>` : ""}
+            <button type="button" data-del-mov="${m.id}" class="btn-del-mov text-rose-400 hover:underline">Borrar</button>
+          </td>
+        </tr>
+      `).join("") || `<tr><td colspan="7" class="py-4 text-center text-slate-500">No hay movimientos registrados.</td></tr>`;
+
+            renderHoyPendientes();
+            renderHitos();
+        }
+
+        function openReport() {
+            let fondos = 0, ejecutado = 0, pendiente = 0;
+            const porCat = {};
+            const pendItems = [];
+            movimientos.forEach((m) => {
+                if (m.tipo === "APORTE_FONDO" || m.tipo === "COBRO_CLIENTE") {
+                    fondos += m.montoUsd;
+                } else {
+                    ejecutado += m.montoUsd;
+                    porCat[m.categoria] = (porCat[m.categoria] || 0) + m.montoUsd;
+                    if (m.estadoSoporte !== "CON_SOPORTE") {
+                        pendiente += m.montoUsd;
+                        pendItems.push(`- [${m.id}] ${m.categoria} (${m.codigoCc}): $${m.montoUsd.toFixed(2)} (${m.estadoSoporte}) - ${m.nota || "Sin nota"}`);
+                    }
+                }
+            });
+
+            const catLines = Object.entries(porCat).map(([k, v]) => `- ${k}: $${v.toFixed(2)}`).join("\n") || "- Sin gastos ejecutados";
+            const hitoLines = hitos.slice(0, 5).map((h) => `- [${h.frente}] ${h.estado}: ${h.paso}`).join("\n") || "- Sin hitos recientes";
+
+            const txt = [
+                `REPORTE HNA INGENIERÍA VZ — LECHERÍA / ANZOÁTEGUI`,
+                `Fecha corte: ${new Date().toISOString().slice(0, 10)}`,
+                ``,
+                `1. POSICIÓN DE CAJA (USD EQUIVALENTE)`,
+                `- Fondos / Aportes recibidos: $${fondos.toFixed(2)}`,
+                `- Ejecutado acumulado: $${ejecutado.toFixed(2)}`,
+                `- Saldo disponible: $${(fondos - ejecutado).toFixed(2)}`,
+                `- Pendiente de soporte: $${pendiente.toFixed(2)}`,
+                ``,
+                `2. EJECUCIÓN POR CATEGORÍA`,
+                catLines,
+                ``,
+                `3. SOPORTES PENDIENTES / OBSERVADOS`,
+                pendItems.length ? pendItems.join("\n") : "- Todo al día con soporte.",
+                ``,
+                `4. HITOS DE SUCURSAL`,
+                hitoLines
+            ].join("\n");
+
+            document.getElementById("reportText").value = txt;
+            document.getElementById("reportModal").classList.remove("hidden");
+        }
+
+        function closeReport() {
+            document.getElementById("reportModal").classList.add("hidden");
+        }
+
+        function copyReport() {
+            const ta = document.getElementById("reportText");
+            ta.select();
+            document.execCommand("copy");
+        }
+
+        function exportJSON() {
+            const blob = new Blob([JSON.stringify({ movimientos, hitos }, null, 2)], { type: "application/json" });
+            downloadBlob(blob, "hna-vzla-respaldo.json");
+        }
+
+        function exportCSV() {
+            const headers = ["id", "fecha", "tipo", "codigoCc", "categoria", "moneda", "monto", "tasa", "montoUsd", "contraparte", "estadoSoporte", "referencia", "nota"];
+            const rows = movimientos.map((m) => headers.map((h) => `"${String(m[h] ?? "").replace(/"/g, '""')}"`).join(","));
+            const blob = new Blob([[headers.join(","), ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
+            downloadBlob(blob, "hna-vzla-movimientos.csv");
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function bindEvents() {
+            document.querySelectorAll("[data-tab]").forEach((btn) => {
+                btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab")));
+            });
+
+            document.getElementById("moneda").addEventListener("change", toggleTasa);
+            document.getElementById("filtroTexto").addEventListener("input", renderAll);
+            document.getElementById("filtroSoporte").addEventListener("change", renderAll);
+
+            document.getElementById("btnOpenReport").addEventListener("click", openReport);
+            document.getElementById("btnOpenReport2").addEventListener("click", openReport);
+            document.getElementById("btnCloseReport").addEventListener("click", closeReport);
+            document.getElementById("btnCopyReport").addEventListener("click", copyReport);
+            document.getElementById("btnExportJSON").addEventListener("click", exportJSON);
+            document.getElementById("btnExportCSV").addEventListener("click", exportCSV);
+
+            document.addEventListener("click", (e) => {
+                const regBtn = e.target.closest(".btn-reg");
+                if (regBtn) {
+                    regularizar(regBtn.getAttribute("data-reg"));
+                    return;
+                }
+                const delMovBtn = e.target.closest(".btn-del-mov");
+                if (delMovBtn) {
+                    deleteMov(delMovBtn.getAttribute("data-del-mov"));
+                    return;
+                }
+                const delHitoBtn = e.target.closest(".btn-del-hito");
+                if (delHitoBtn) {
+                    deleteHito(delHitoBtn.getAttribute("data-del-hito"));
+                }
+            });
+
+            document.getElementById("movForm").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const moneda = document.getElementById("moneda").value;
+                const monto = Number(document.getElementById("monto").value);
+                const tasa = moneda === "VES" ? Number(document.getElementById("tasa").value) : 1;
+                const montoUsd = calcUSD(moneda, monto, tasa);
+                const tipo = document.getElementById("tipo").value;
+                const umbral = Number(document.getElementById("umbralInput").value) || 0;
+
+                const banner = document.getElementById("alertaBanner");
+                if (tipo !== "APORTE_FONDO" && tipo !== "COBRO_CLIENTE" && umbral > 0 && montoUsd > umbral) {
+                    banner.textContent = `Alerta de umbral: el movimiento de $${montoUsd.toFixed(2)} USD supera el umbral configurado de $${umbral.toFixed(2)} USD. Verifica aprobación previa de socios/casa matriz.`;
+                    banner.classList.remove("hidden");
+                } else {
+                    banner.classList.add("hidden");
+                }
+
+                const item = {
+                    id: nextId(),
+                    fecha: document.getElementById("fecha").value,
+                    tipo,
+                    codigoCc: document.getElementById("codigoCc").value.trim().toUpperCase(),
+                    categoria: document.getElementById("categoria").value,
+                    moneda,
+                    monto,
+                    tasa,
+                    montoUsd,
+                    contraparte: document.getElementById("contraparte").value.trim(),
+                    estadoSoporte: document.getElementById("estadoSoporte").value,
+                    referencia: document.getElementById("referencia").value.trim(),
+                    nota: document.getElementById("nota").value.trim()
+                };
+
+                await putItem("movimientos", item);
+                movimientos.unshift(item);
+                e.target.reset();
+                document.getElementById("fecha").valueAsDate = new Date();
+                document.getElementById("codigoCc").value = "INST-VZLA";
+                toggleTasa();
+                renderAll();
+            });
+
+            document.getElementById("hitoForm").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const hito = {
+                    id: "HITO-" + Date.now(),
+                    fecha: new Date().toISOString().slice(0, 10),
+                    frente: document.getElementById("hitoFrente").value,
+                    estado: document.getElementById("hitoEstado").value,
+                    paso: document.getElementById("hitoPaso").value.trim()
+                };
+                await putItem("hitos", hito);
+                hitos.unshift(hito);
+                e.target.reset();
+                renderHitos();
+            });
+        }
+
+        (async function init() {
+            bindEvents();
             document.getElementById("fecha").valueAsDate = new Date();
-            document.getElementById("codigoCc").value = "INST-VZLA";
-            toggleTasa();
+            try {
+                await openDB();
+                movimientos = (await getAll("movimientos")).reverse();
+                hitos = (await getAll("hitos")).reverse();
+            } catch (err) {
+                console.error(err);
+            }
             renderAll();
-        });
+            if ("serviceWorker" in navigator) {
+                window.addEventListener("load", () => {
+                    navigator.serviceWorker.register("./sw.js").catch(() => { });
+                });
+            }
+        })();
+    </script>
+</body>
 
-        document.getElementById("hitoForm").addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const hito = {
-                id: "HITO-" + Date.now(),
-                fecha: new Date().toISOString().slice(0, 10),
-                frente: document.getElementById("hitoFrente").value,
-                estado: document.getElementById("hitoEstado").value,
-                paso: document.getElementById("hitoPaso").value.trim()
-            };
-            await putItem("hitos", hito);
-            hitos.unshift(hito);
-            e.target.reset();
+</html>
