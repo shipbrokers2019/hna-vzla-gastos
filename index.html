@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HNA Ingeniería VZ — Control de Gastos y Avances</title>
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#f59e0b" />
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+    <div class="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
+        <header
+            class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-800 pb-4">
+            <div>
+                <span class="text-xs uppercase tracking-wider text-amber-400 font-semibold">Lechería / Anzoátegui ·
+                    Venezuela</span>
+                <h1 class="text-2xl font-bold text-white">HNA Ingeniería VZ — Control y Reporte</h1>
+                <p class="text-sm text-slate-400">Registro offline-first (IndexedDB) · CAPEX / OPEX · USD / VES ·
+                    Soportes e Hitos</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <label
+                    class="text-xs text-slate-300 flex items-center gap-1 bg-slate-900 border border-slate-700 px-3 py-2 rounded-lg">
+                    Umbral USD:
+                    <input id="umbralInput" type="number" step="10" value="500"
+                        class="w-20 bg-slate-950 text-amber-400 font-semibold px-2 py-0.5 rounded border border-slate-700" />
+                </label>
+                <button onclick="exportJSON()"
+                    class="bg-slate-800 hover:bg-slate-700 text-xs px-3 py-2 rounded-lg border border-slate-700">Exportar
+                    JSON</button>
+                <button onclick="exportCSV()"
+                    class="bg-slate-800 hover:bg-slate-700 text-xs px-3 py-2 rounded-lg border border-slate-700">Exportar
+                    CSV</button>
+                <button onclick="openReport()"
+                    class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs px-4 py-2 rounded-lg">Generar
+                    Reporte</button>
+            </div>
+        </header>
+
+        <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <p class="text-xs text-slate-400">Fondos / Aportes (USD eq.)</p>
+                <p id="kpiFondos" class="text-2xl font-bold text-emerald-400 mt-1">$0.00</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <p class="text-xs text-slate-400">Ejecutado Total (USD eq.)</p>
+                <p id="kpiEjecutado" class="text-2xl font-bold text-amber-400 mt-1">$0.00</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <p class="text-xs text-slate-400">Saldo Disponible (USD eq.)</p>
+                <p id="kpiSaldo" class="text-2xl font-bold text-white mt-1">$0.00</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <p class="text-xs text-slate-400">Pendiente Soporte (USD eq.)</p>
+                <p id="kpiPendiente" class="text-2xl font-bold text-rose-400 mt-1">$0.00</p>
+            </div>
+        </section>
+
+        <div id="alertaBanner"
+            class="hidden bg-amber-500/15 border border-amber-500/50 text-amber-200 px-4 py-3 rounded-xl text-sm"></div>
+
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <form id="movForm" class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+                <h2 class="text-lg font-semibold text-white">Registro Rápido de Movimiento</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Fecha</label>
+                        <input id="fecha" type="date" required
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Tipo</label>
+                        <select id="tipo"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm">
+                            <option value="APORTE_FONDO">APORTE_FONDO</option>
+                            <option value="GASTO_CAPEX">GASTO_CAPEX</option>
+                            <option value="GASTO_OPEX" selected>GASTO_OPEX</option>
+                            <option value="ANTICIPO_VIATICO">ANTICIPO_VIATICO</option>
+                            <option value="REEMBOLSO">REEMBOLSO</option>
+                            <option value="COBRO_CLIENTE">COBRO_CLIENTE</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Centro de Costo / Código</label>
+                        <input id="codigoCc" type="text" value="INST-VZLA" required
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Categoría</label>
+                        <select id="categoria"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm">
+                            <option value="FONDO_INICIAL">FONDO_INICIAL</option>
+                            <option value="CONST_LEGAL">CONST_LEGAL (CAPEX)</option>
+                            <option value="LOCAL_ADEC">LOCAL_ADEC (CAPEX)</option>
+                            <option value="EQUIP_MOB">EQUIP_MOB (CAPEX)</option>
+                            <option value="VIAT_CAMPO">VIAT_CAMPO (OPEX)</option>
+                            <option value="SERV_CONECT">SERV_CONECT (OPEX)</option>
+                            <option value="IMP_TASAS">IMP_TASAS (OPEX)</option>
+                            <option value="PROY_OP">PROY_OP (OPEX/PROY)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Moneda</label>
+                        <select id="moneda" onchange="toggleTasa()"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm">
+                            <option value="USD">USD</option>
+                            <option value="VES">VES</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Monto Original</label>
+                        <input id="monto" type="number" step="0.01" required placeholder="0.00"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div id="tasaBox" class="hidden">
+                        <label class="block text-xs text-slate-400 mb-1">Tasa / Referencia (VES por USD)</label>
+                        <input id="tasa" type="number" step="0.01" value="40.00"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Contraparte / Beneficiario</label>
+                        <input id="contraparte" type="text" placeholder="Ej. Gestoría / Arrendador / Socio"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Estado de Soporte</label>
+                        <select id="estadoSoporte"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm">
+                            <option value="CON_SOPORTE">CON_SOPORTE</option>
+                            <option value="PENDIENTE_SOPORTE">PENDIENTE_SOPORTE</option>
+                            <option value="OBSERVADO">OBSERVADO</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Referencia / Comprobante</label>
+                        <input id="referencia" type="text" placeholder="Ej. FAC-001 / REC-TEMP-12"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Nota / Motivo o Fecha Regularización</label>
+                        <input id="nota" type="text" placeholder="Detalle del gasto o gestión"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                </div>
+
+                <button type="submit"
+                    class="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold px-5 py-2.5 rounded-lg text-sm">
+                    Guardar Movimiento
+                </button>
+            </form>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+                <h2 class="text-lg font-semibold text-white">Hitos de Sucursal</h2>
+                <form id="hitoForm" class="space-y-3">
+                    <select id="hitoFrente"
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm">
+                        <option value="LEGAL_REGISTRO">LEGAL_REGISTRO</option>
+                        <option value="LOCAL_OFICINA">LOCAL_OFICINA</option>
+                        <option value="BANCA_FISCAL">BANCA_FISCAL</option>
+                        <option value="COMERCIAL_OPERATIVO">COMERCIAL_OPERATIVO</option>
+                        <option value="SISTEMAS_CONTROL">SISTEMAS_CONTROL</option>
+                    </select>
+                    <select id="hitoEstado"
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm">
+                        <option value="EN_CURSO">EN_CURSO</option>
+                        <option value="PENDIENTE_TERCERO">PENDIENTE_TERCERO</option>
+                        <option value="COMPLETADO">COMPLETADO</option>
+                        <option value="BLOQUEADO">BLOQUEADO</option>
+                    </select>
+                    <input id="hitoPaso" type="text" required placeholder="Próximo paso (ej. Comparar locales Lechería)"
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    <button type="submit"
+                        class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm py-2 rounded-lg font-medium">
+                        Registrar Hito
+                    </button>
+                </form>
+                <ul id="hitosLista" class="space-y-2 text-xs max-h-60 overflow-y-auto pt-2 border-t border-slate-800">
+                </ul>
+            </div>
+        </section>
+
+        <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <h2 class="text-lg font-semibold text-white">Bitácora de Movimientos</h2>
+                <div class="flex flex-wrap gap-2">
+                    <input id="filtroTexto" oninput="renderAll()" type="text"
+                        placeholder="Buscar código, contraparte, nota..."
+                        class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs" />
+                    <select id="filtroSoporte" onchange="renderAll()"
+                        class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs">
+                        <option value="ALL">Todos los soportes</option>
+                        <option value="CON_SOPORTE">CON_SOPORTE</option>
+                        <option value="PENDIENTE_SOPORTE">PENDIENTE_SOPORTE</option>
+                        <option value="OBSERVADO">OBSERVADO</option>
+                    </select>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="border-b border-slate-800 text-slate-400">
+                        <tr>
+                            <th class="py-2 pr-3">ID / Fecha</th>
+                            <th class="py-2 pr-3">Tipo / Rubro</th>
+                            <th class="py-2 pr-3">Código</th>
+                            <th class="py-2 pr-3">Monto</th>
+                            <th class="py-2 pr-3">USD Eq.</th>
+                            <th class="py-2 pr-3">Soporte</th>
+                            <th class="py-2">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="movTabla" class="divide-y divide-slate-800/70"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <div id="reportModal" class="hidden fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-5 space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-bold text-white">Reporte Ejecutivo para Socios / Casa Matriz</h3>
+                <button onclick="closeReport()" class="text-slate-400 hover:text-white text-sm">Cerrar ✕</button>
+            </div>
+            <textarea id="reportText" rows="14"
+                class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs font-mono text-slate-200"></textarea>
+            <div class="flex justify-end gap-2">
+                <button onclick="copyReport()"
+                    class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs px-4 py-2 rounded-lg">Copiar
+                    Resumen</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DB_NAME = "HNA_VZLA_DB";
+        const DB_VER = 1;
+        let db;
+        let movimientos = [];
+        let hitos = [];
+
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(DB_NAME, DB_VER);
+                req.onupgradeneeded = (e) => {
+                    const d = e.target.result;
+                    if (!d.objectStoreNames.contains("movimientos")) d.createObjectStore("movimientos", { keyPath: "id" });
+                    if (!d.objectStoreNames.contains("hitos")) d.createObjectStore("hitos", { keyPath: "id" });
+                };
+                req.onsuccess = () => { db = req.result; resolve(db); };
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        function getAll(storeName) {
+            return new Promise((resolve) => {
+                const tx = db.transaction(storeName, "readonly");
+                const req = tx.objectStore(storeName).getAll();
+                req.onsuccess = () => resolve(req.result || []);
+            });
+        }
+
+        function putItem(storeName, item) {
+            return new Promise((resolve) => {
+                const tx = db.transaction(storeName, "readwrite");
+                tx.objectStore(storeName).put(item);
+                tx.oncomplete = () => resolve();
+            });
+        }
+
+        function toggleTasa() {
+            const moneda = document.getElementById("moneda").value;
+            document.getElementById("tasaBox").classList.toggle("hidden", moneda !== "VES");
+        }
+
+        function calcUSD(moneda, monto, tasa) {
+            const m = Number(monto) || 0;
+            if (moneda === "USD") return Number(m.toFixed(2));
+            const t = Number(tasa) || 1;
+            return Number((m / t).toFixed(2));
+        }
+
+        function nextId() {
+            const year = new Date().getFullYear();
+            const seq = String(movimientos.length + 1).padStart(4, "0");
+            return `HNA-VZ-${year}-${seq}`;
+        }
+
+        document.getElementById("movForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const moneda = document.getElementById("moneda").value;
+            const monto = Number(document.getElementById("monto").value);
+            const tasa = moneda === "VES" ? Number(document.getElementById("tasa").value) : 1;
+            const montoUsd = calcUSD(moneda, monto, tasa);
+            const tipo = document.getElementById("tipo").value;
+            const umbral = Number(document.getElementById("umbralInput").value) || 0;
+
+            const banner = document.getElementById("alertaBanner");
+            if (tipo !== "APORTE_FONDO" && tipo !== "COBRO_CLIENTE" && umbral > 0 && montoUsd > umbral) {
+                banner.textContent = `Alerta de umbral: el movimiento de $${montoUsd.toFixed(2)} USD supera el umbral configurado de$${umbral.toFixed(2)} USD. Verifica aprobación previa de socios/casa matriz.`;
+                banner.classList.remove("hidden");
+            } else {
+                banner.classList.add("hidden");
+            }
+
+            const item = {
+                id: nextId(),
+                fecha: document.getElementById("fecha").value,
+                tipo,
+                codigoCc: document.getElementById("codigoCc").value.trim().toUpperCase(),
+                categoria: document.getElementById("categoria").value,
+                moneda,
+                monto,
+                tasa,
+                montoUsd,
+                contraparte: document.getElementById("contraparte").value.trim(),
+                estadoSoporte: document.getElementById("estadoSoporte").value,
+                referencia: document.getElementById("referencia").value.trim(),
+                nota: document.getElementById("nota").value.trim()
+            };
+
+            await putItem("movimientos", item);
+            movimientos.unshift(item);
+            e.target.reset();
+            document.getElementById("fecha").valueAsDate = new Date();
+            document.getElementById("codigoCc").value = "INST-VZLA";
+            toggleTasa();
+            renderAll();
+        });
+
+        document.getElementById("hitoForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const hito = {
+                id: "HITO-" + Date.now(),
+                fecha: new Date().toISOString().slice(0, 10),
+                frente: document.getElementById("hitoFrente").value,
+                estado: document.getElementById("hitoEstado").value,
+                paso: document.getElementById("hitoPaso").value.trim()
+            };
+            await putItem("hitos", hito);
+            hitos.unshift(hito);
+            e.target.reset();
+            renderHitos();
+        });
+
+        async function regularizar(id) {
+            const mov = movimientos.find((m) => m.id === id);
+            if (!mov) return;
+            mov.estadoSoporte = "CON_SOPORTE";
+            await putItem("movimientos", mov);
+            renderAll();
+        }
+
+        function renderHitos() {
+            const ul = document.getElementById("hitosLista");
+            ul.innerHTML = hitos.map((h) => `
+        <li class="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5">
+          <div class="flex justify-between text-amber-300 font-semibold">
+            <span>${h.frente}</span>
+            <span>${h.estado}</span>
+          </div>
+          <p class="text-slate-300 mt-1">${h.paso}</p>
+          <span class="text-[11px] text-slate-500">${h.fecha}</span>
+        </li>
+      `).join("") || `<li class="text-slate-500">Sin hitos registrados aún.</li>`;
+        }
+
+        function renderAll() {
+            let fondos = 0, ejecutado = 0, pendiente = 0;
+            movimientos.forEach((m) => {
+                if (m.tipo === "APORTE_FONDO" || m.tipo === "COBRO_CLIENTE") {
+                    fondos += m.montoUsd;
+                } else {
+                    ejecutado += m.montoUsd;
+                    if (m.estadoSoporte !== "CON_SOPORTE") pendiente += m.montoUsd;
+                }
+            });
+            const saldo = fondos - ejecutado;
+
+            document.getElementById("kpiFondos").textContent = `$${fondos.toFixed(2)}`; document.getElementById("kpiEjecutado").textContent = `$${ejecutado.toFixed(2)}`;
+            document.getElementById("kpiSaldo").textContent = `$${saldo.toFixed(2)}`; document.getElementById("kpiPendiente").textContent = `$${pendiente.toFixed(2)}`;
+
+            const q = document.getElementById("filtroTexto").value.toLowerCase();
+            const sup = document.getElementById("filtroSoporte").value;
+            const filtrados = movimientos.filter((m) => {
+                const matchSup = sup === "ALL" || m.estadoSoporte === sup;
+                const matchQ = !q || JSON.stringify(m).toLowerCase().includes(q);
+                return matchSup && matchQ;
+            });
+
+            document.getElementById("movTabla").innerHTML = filtrados.map((m) => `
+        <tr>
+          <td class="py-2 pr-3"><div class="font-mono text-slate-300">${m.id}</div><div class="text-slate-500">${m.fecha}</div></td>
+          <td class="py-2 pr-3"><div class="font-semibold text-white">${m.tipo}</div><div class="text-slate-400">${m.categoria}</div></td>
+          <td class="py-2 pr-3 font-mono text-amber-300">${m.codigoCc}</td>
+          <td class="py-2 pr-3">${m.moneda} ${Number(m.monto).toFixed(2)}</td> <td class="py-2 pr-3 font-semibold">$${Number(m.montoUsd).toFixed(2)}</td>
+          <td class="py-2 pr-3">
+            <span class="px-2 py-0.5 rounded text-[11px] ${m.estadoSoporte === "CON_SOPORTE" ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"}">
+              ${m.estadoSoporte}
+            </span>
+          </td>
+          <td class="py-2">
+            ${m.estadoSoporte !== "CON_SOPORTE" ? `<button onclick="regularizar('${m.id}')" class="text-amber-400 hover:underline">Regularizar</button>` : `<span class="text-slate-600">—</span>`}
+          </td>
+        </tr>
+      `).join("") || `<tr><td colspan="7" class="py-4 text-center text-slate-500">No hay movimientos registrados.</td></tr>`;
+
+            renderHitos();
+        }
+
+        function openReport() {
+            let fondos = 0, ejecutado = 0, pendiente = 0;
+            const porCat = {};
+            const pendItems = [];
+            movimientos.forEach((m) => {
+                if (m.tipo === "APORTE_FONDO" || m.tipo === "COBRO_CLIENTE") {
+                    fondos += m.montoUsd;
+                } else {
+                    ejecutado += m.montoUsd;
+                    porCat[m.categoria] = (porCat[m.categoria] || 0) + m.montoUsd;
+                    if (m.estadoSoporte !== "CON_SOPORTE") {
+                        pendiente += m.montoUsd;
+                        pendItems.push(`- [${m.id}]${m.categoria} (${m.codigoCc}):$${m.montoUsd.toFixed(2)} (${m.estadoSoporte}) -${m.nota || "Sin nota"}`);
+                    }
+                }
+            });
+
+            const catLines = Object.entries(porCat).map(([k, v]) => `- ${k}:$${v.toFixed(2)}`).join("\n") \vert{ }\vert{ } "- Sin gastos ejecutados"; const hitoLines = hitos.slice(0, 5).map((h) => `- [${h.frente}] ${h.estado}:${h.paso}`).join("\n") || "- Sin hitos recientes";
+
+            const txt = [
+                `REPORTE HNA INGENIERÍA VZ — LECHERÍA / ANZOÁTEGUI`,
+                `Fecha corte: ${new Date().toISOString().slice(0, 10)}`,
+                ``,
+                `1. POSICIÓN DE CAJA (USD EQUIVALENTE)`,
+                `- Fondos / Aportes recibidos: $${fondos.toFixed(2)}`, `- Ejecutado acumulado: $${ejecutado.toFixed(2)}`,
+                `- Saldo disponible: $${(fondos - ejecutado).toFixed(2)}`, `- Pendiente de soporte: $${pendiente.toFixed(2)}`,
+                ``,
+                `2. EJECUCIÓN POR CATEGORÍA`,
+                catLines,
+                ``,
+                `3. SOPORTES PENDIENTES / OBSERVADOS`,
+                pendItems.length ? pendItems.join("\n") : "- Todo al día con soporte.",
+                ``,
+                `4. HITOS DE SUCURSAL`,
+                hitoLines
+            ].join("\n");
+
+            document.getElementById("reportText").value = txt;
+            document.getElementById("reportModal").classList.remove("hidden");
+        }
+
+        function closeReport() {
+            document.getElementById("reportModal").classList.add("hidden");
+        }
+
+        function copyReport() {
+            const ta = document.getElementById("reportText");
+            ta.select();
+            document.execCommand("copy");
+        }
+
+        function exportJSON() {
+            const blob = new Blob([JSON.stringify({ movimientos, hitos }, null, 2)], { type: "application/json" });
+            downloadBlob(blob, "hna-vzla-respaldo.json");
+        }
+
+        function exportCSV() {
+            const headers = ["id", "fecha", "tipo", "codigoCc", "categoria", "moneda", "monto", "tasa", "montoUsd", "contraparte", "estadoSoporte", "referencia", "nota"];
+            const rows = movimientos.map((m) => headers.map((h) => `"${String(m[h] ?? "").replace(/"/g, '""')}"`).join(","));
+            const blob = new Blob([[headers.join(","), ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
+            downloadBlob(blob, "hna-vzla-movimientos.csv");
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        (async function init() {
+            document.getElementById("fecha").valueAsDate = new Date();
+            await openDB();
+            movimientos = (await getAll("movimientos")).reverse();
+            hitos = (await getAll("hitos")).reverse();
+            renderAll();
+            if ("serviceWorker" in navigator) {
+                window.addEventListener("load", () => {
+                    navigator.serviceWorker.register("./sw.js").catch(() => { });
+                });
+            }
+        })();
+    </script>
+</body>
+
+</html>
