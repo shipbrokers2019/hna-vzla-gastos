@@ -80,9 +80,26 @@ let editingMovId = null;
 let editingHitoId = null;
 let pendingPhotoDataUrl = null;
 let pendingPhotoSizeKb = 0;
+let pendingPhotoName = null;
+let pendingPhotoType = null;
 let quickAttachMovId = null;
 let pendingHitoDocs = [];
 let quickAttachHitoId = null;
+
+const CHECKLIST_PASOS_SET = new Set(CHECKLIST_VENEZUELA.map((c) => c.paso.toLowerCase()));
+
+function isChecklistHito(h) {
+    return Boolean(h && (h.isChecklistBase || CHECKLIST_PASOS_SET.has(String(h.paso || "").trim().toLowerCase())));
+}
+
+function sortByFechaDesc(list) {
+    return [...list].sort((a, b) => {
+        const fa = a.fecha || "";
+        const fb = b.fecha || "";
+        if (fb !== fa) return fb.localeCompare(fa);
+        return String(b.id || "").localeCompare(String(a.id || ""));
+    });
+}
 
 // --- Helpers ---
 function escapeHtml(str) {
@@ -230,20 +247,100 @@ function compressImageFile(file, maxDim = 1280, quality = 0.78) {
     });
 }
 
-function setFormPhoto(dataUrl, sizeKb = 0) {
+function isImageData(type, dataUrl) {
+    if (type && type.startsWith("image/")) return true;
+    if (!type && typeof dataUrl === "string" && dataUrl.startsWith("data:image/")) return true;
+    return false;
+}
+
+function getDocBadge(type, name, dataUrl) {
+    if (isImageData(type, dataUrl)) return { tag: "IMG", cls: "" };
+    const ext = (String(name || "").split(".").pop() || "").toLowerCase();
+    const t = String(type || "").toLowerCase();
+    if (t === "application/pdf" || ext === "pdf") return { tag: "PDF", cls: "pdf" };
+    if (t.includes("word") || ext === "doc" || ext === "docx") return { tag: "DOC", cls: "doc" };
+    if (t.includes("excel") || t.includes("spreadsheet") || ext === "xls" || ext === "xlsx") return { tag: "XLS", cls: "xls" };
+    if (t === "text/csv" || ext === "csv") return { tag: "CSV", cls: "xls" };
+    if (t === "text/plain" || ext === "txt") return { tag: "TXT", cls: "file" };
+    return { tag: ext && ext.length <= 4 ? ext.toUpperCase() : "ARCH", cls: "file" };
+}
+
+function openStoredFile(doc, title, meta) {
+    if (!doc || !doc.dataUrl) return;
+    if (isImageData(doc.type, doc.dataUrl)) {
+        document.getElementById("lightboxTitle").textContent = title || doc.name || "Comprobante";
+        document.getElementById("lightboxMeta").textContent = meta || `~${doc.sizeKb || 0} KB`;
+        document.getElementById("lightboxImg").src = doc.dataUrl;
+        const dlBtn = document.getElementById("btnDownloadPhoto");
+        dlBtn.href = doc.dataUrl;
+        dlBtn.download = doc.name || "soporte.jpg";
+        document.getElementById("photoModal").classList.remove("hidden");
+        return;
+    }
+
+    const isPdf = doc.type === "application/pdf" || String(doc.name || "").toLowerCase().endsWith(".pdf");
+    fetch(doc.dataUrl)
+        .then((r) => r.blob())
+        .then((blob) => {
+            const url = URL.createObjectURL(blob);
+            if (isPdf) {
+                const win = window.open(url, "_blank");
+                if (!win) {
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = doc.name || "documento.pdf";
+                    a.click();
+                }
+            } else {
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = doc.name || "documento";
+                a.click();
+            }
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+        })
+        .catch(() => {
+            const a = document.createElement("a");
+            a.href = doc.dataUrl;
+            a.download = doc.name || "documento";
+            a.click();
+        });
+}
+
+function setFormPhoto(dataUrl, sizeKb = 0, name = null, type = null) {
     pendingPhotoDataUrl = dataUrl || null;
     pendingPhotoSizeKb = sizeKb || (dataUrl ? Math.max(1, Math.round((dataUrl.length * 3) / 4 / 1024)) : 0);
+    pendingPhotoName = dataUrl ? (name || null) : null;
+    pendingPhotoType = dataUrl ? (type || (dataUrl.startsWith("data:image/") ? "image/jpeg" : null)) : null;
 
     const previewBox = document.getElementById("photoPreviewBox");
     const previewImg = document.getElementById("photoPreviewImg");
+    const previewDocBadge = document.getElementById("photoPreviewDocBadge");
     const previewMeta = document.getElementById("photoPreviewMeta");
+    const previewHint = document.getElementById("photoPreviewHint");
 
     if (pendingPhotoDataUrl) {
-        previewImg.src = pendingPhotoDataUrl;
-        previewMeta.textContent = `Recibo listo · ~${pendingPhotoSizeKb} KB (comprimido)`;
+        const isImg = isImageData(pendingPhotoType, pendingPhotoDataUrl);
+        if (isImg) {
+            previewImg.src = pendingPhotoDataUrl;
+            previewImg.classList.remove("hidden");
+            previewDocBadge.classList.add("hidden");
+            previewMeta.textContent = `${pendingPhotoName ? pendingPhotoName + " · " : ""}~${pendingPhotoSizeKb} KB (comprimido)`;
+            if (previewHint) previewHint.textContent = "Clic en la miniatura para ampliar";
+        } else {
+            const badge = getDocBadge(pendingPhotoType, pendingPhotoName, pendingPhotoDataUrl);
+            previewImg.removeAttribute("src");
+            previewImg.classList.add("hidden");
+            previewDocBadge.textContent = badge.tag;
+            previewDocBadge.className = `doc-preview-badge ${badge.cls}`;
+            previewMeta.textContent = `${pendingPhotoName || "Documento adjunto"} · ~${pendingPhotoSizeKb} KB`;
+            if (previewHint) previewHint.textContent = "Clic en el ícono para abrir o descargar";
+        }
         previewBox.classList.remove("hidden");
     } else {
         previewImg.removeAttribute("src");
+        previewImg.classList.remove("hidden");
+        previewDocBadge.classList.add("hidden");
         previewMeta.textContent = "";
         previewBox.classList.add("hidden");
         const input = document.getElementById("fotoInput");
@@ -251,45 +348,47 @@ function setFormPhoto(dataUrl, sizeKb = 0) {
     }
 }
 
-async function processHitoAttachment(file) {
+async function processAttachmentFile(file) {
     if (!file) throw new Error("Archivo inválido.");
-    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-    const isImg = file.type.startsWith("image/");
-
-    if (!isPdf && !isImg) {
-        throw new Error(`Formato no soportado (${file.name}). Usa PDF o imagen.`);
-    }
+    const isImg = file.type && file.type.startsWith("image/");
 
     if (isImg) {
         const { dataUrl, sizeKb } = await compressImageFile(file);
         return {
             id: "DOC-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
-            name: file.name || "presupuesto.jpg",
+            name: file.name || "imagen.jpg",
             type: "image/jpeg",
             sizeKb,
             dataUrl
         };
     }
 
-    // PDF: limit 5 MB per file to keep IndexedDB fast
+    // Documents (PDF, Word, Excel, CSV, TXT, etc.): limit 5 MB per file to keep IndexedDB fast
     if (file.size > 5 * 1024 * 1024) {
-        throw new Error(`El PDF "${file.name}" supera el límite de 5 MB.`);
+        throw new Error(`El archivo "${file.name}" supera el límite de 5 MB.`);
     }
 
     const dataUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onerror = () => reject(new Error("No se pudo leer el PDF."));
+        reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
         reader.onload = () => resolve(reader.result);
         reader.readAsDataURL(file);
     });
 
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    const inferredType = file.type || (ext === "pdf" ? "application/pdf" : "application/octet-stream");
+
     return {
         id: "DOC-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
-        name: file.name || "documento.pdf",
-        type: "application/pdf",
+        name: file.name || "documento",
+        type: inferredType,
         sizeKb: Math.max(1, Math.round(file.size / 1024)),
         dataUrl
     };
+}
+
+async function processHitoAttachment(file) {
+    return processAttachmentFile(file);
 }
 
 function renderPendingHitoDocs() {
@@ -301,10 +400,10 @@ function renderPendingHitoDocs() {
     }
     box.classList.remove("hidden");
     box.innerHTML = pendingHitoDocs.map((doc) => {
-        const isPdf = doc.type === "application/pdf";
+        const badge = getDocBadge(doc.type, doc.name, doc.dataUrl);
         return `
             <span class="doc-chip">
-                <span class="doc-chip-tag ${isPdf ? "pdf" : ""}">${isPdf ? "PDF" : "IMG"}</span>
+                <span class="doc-chip-tag ${badge.cls}">${badge.tag}</span>
                 <span class="doc-chip-name" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</span>
                 <span class="mono text-subtle" style="font-size:0.68rem;">${doc.sizeKb}KB</span>
                 <button type="button" data-remove-pending-doc="${escapeHtml(doc.id)}" class="doc-chip-remove btn-remove-pending-doc" aria-label="Quitar documento">✕</button>
@@ -317,38 +416,7 @@ function openHitoDocument(hitoId, docId) {
     const h = hitos.find((x) => x.id === hitoId);
     const doc = h?.adjuntos?.find((d) => d.id === docId);
     if (!doc) return;
-
-    if (doc.type === "application/pdf") {
-        // Convert DataURL to Blob URL for reliable PDF viewing/downloading on mobile & desktop
-        fetch(doc.dataUrl)
-            .then((r) => r.blob())
-            .then((blob) => {
-                const url = URL.createObjectURL(blob);
-                const win = window.open(url, "_blank");
-                if (!win) {
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = doc.name || "documento.pdf";
-                    a.click();
-                }
-                setTimeout(() => URL.revokeObjectURL(url), 60000);
-            })
-            .catch(() => {
-                const a = document.createElement("a");
-                a.href = doc.dataUrl;
-                a.download = doc.name || "documento.pdf";
-                a.click();
-            });
-        return;
-    }
-
-    document.getElementById("lightboxTitle").textContent = `${h.frente} · ${doc.name}`;
-    document.getElementById("lightboxMeta").textContent = `${h.fecha} · ~${doc.sizeKb || 0} KB`;
-    document.getElementById("lightboxImg").src = doc.dataUrl;
-    const dlBtn = document.getElementById("btnDownloadPhoto");
-    dlBtn.href = doc.dataUrl;
-    dlBtn.download = doc.name || "presupuesto.jpg";
-    document.getElementById("photoModal").classList.remove("hidden");
+    openStoredFile(doc, `${frenteLabel(h.frente)} · ${doc.name}`, `${h.fecha} · ~${doc.sizeKb || 0} KB`);
 }
 
 // --- Business Logic ---
@@ -476,7 +544,7 @@ function startEditMov(id) {
     document.getElementById("metodoPago").value = mov.metodoPago || "EFECTIVO_USD";
     document.getElementById("referencia").value = mov.referencia || "";
     document.getElementById("nota").value = mov.nota || "";
-    setFormPhoto(mov.fotoSoporte || null);
+    setFormPhoto(mov.fotoSoporte || null, mov.soporteSizeKb || 0, mov.soporteNombre || null, mov.soporteTipo || null);
 
     toggleTasa();
     document.getElementById("movEditLabel").textContent = `Editando movimiento ${mov.id}`;
@@ -594,14 +662,31 @@ function pillClassForSoporte(estado) {
     return "pill-rose";
 }
 
+function updateChecklistButton() {
+    const btn = document.getElementById("btnLoadChecklist");
+    if (!btn) return;
+    const loadedCount = hitos.filter(isChecklistHito).length;
+    if (loadedCount > 0) {
+        btn.textContent = `Quitar checklist Venezuela (${loadedCount})`;
+        btn.classList.remove("btn-secondary");
+        btn.classList.add("btn-danger-outline");
+    } else {
+        btn.textContent = "Cargar checklist Venezuela";
+        btn.classList.remove("btn-danger-outline");
+        btn.classList.add("btn-secondary");
+    }
+}
+
 function renderHitos() {
+    updateChecklistButton();
     const ul = document.getElementById("hitosLista");
     const filtro = document.getElementById("filtroHitoEstado").value;
-    const visibles = hitos.filter((h) => filtro === "ALL" || h.estado === filtro);
+    const sortedHitos = sortByFechaDesc(hitos);
+    const visibles = sortedHitos.filter((h) => filtro === "ALL" || h.estado === filtro);
 
     // Progress bar calculation
-    const totalH = hitos.length;
-    const doneH = hitos.filter((h) => h.estado === "COMPLETADO").length;
+    const totalH = sortedHitos.length;
+    const doneH = sortedHitos.filter((h) => h.estado === "COMPLETADO").length;
     const pctH = totalH ? Math.round((doneH / totalH) * 100) : 0;
 
     const hitoProgText = document.getElementById("hitosProgressText");
@@ -631,11 +716,11 @@ function renderHitos() {
         const docsHtml = docs.length ? `
             <div class="doc-chip-list" style="margin-top:4px;">
                 ${docs.map((doc) => {
-                    const isPdf = doc.type === "application/pdf";
+                    const badge = getDocBadge(doc.type, doc.name, doc.dataUrl);
                     return `
                         <span class="doc-chip">
                             <button type="button" data-open-hito="${escapeHtml(h.id)}" data-open-doc="${escapeHtml(doc.id)}" class="doc-chip-btn btn-open-hito-doc" title="Abrir ${escapeHtml(doc.name)}">
-                                <span class="doc-chip-tag ${isPdf ? "pdf" : ""}">${isPdf ? "PDF" : "IMG"}</span>
+                                <span class="doc-chip-tag ${badge.cls}">${badge.tag}</span>
                                 <span class="doc-chip-name">${escapeHtml(doc.name)}</span>
                                 <span class="mono text-subtle" style="font-size:0.68rem;">${doc.sizeKb || 0}KB</span>
                             </button>
@@ -677,13 +762,14 @@ function renderHitos() {
     }).join("") || `<div class="empty-state">No hay hitos para mostrar.</div>`;
 
     const preview = document.getElementById("hoyHitosPreview");
-    preview.innerHTML = hitos.slice(0, 4).map((h) => {
+    preview.innerHTML = sortedHitos.slice(0, 4).map((h) => {
         const docsCount = Array.isArray(h.adjuntos) ? h.adjuntos.length : 0;
         return `
         <div class="item-row">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                     <span class="mono" style="font-size:0.76rem; font-weight:700; color:var(--accent-hover);">${escapeHtml(frenteLabel(h.frente))}</span>
+                    <span class="mono text-subtle" style="font-size:0.72rem;">${escapeHtml(h.fecha)}</span>
                     ${h.presupuestoUsd ? `<span class="pill pill-slate mono">Est. $${formatMoney(h.presupuestoUsd)}</span>` : ""}
                     ${docsCount ? `<span class="pill pill-sky">${docsCount} ${docsCount === 1 ? "doc" : "docs"}</span>` : ""}
                 </div>
@@ -738,9 +824,28 @@ function renderHoyCategorias(totals) {
     }).join("");
 }
 
+function renderMovSoporteControl(m, compact = false) {
+    if (!m.fotoSoporte) {
+        return compact
+            ? `<button type="button" data-attach-mov="${escapeHtml(m.id)}" class="btn btn-ghost btn-sm btn-attach-mov" title="Adjuntar foto o documento">+ Soporte</button>`
+            : "";
+    }
+    if (isImageData(m.soporteTipo, m.fotoSoporte)) {
+        return `<img src="${m.fotoSoporte}" alt="Soporte ${escapeHtml(m.id)}" data-view-photo="${escapeHtml(m.id)}" class="${compact ? "photo-thumb-sm" : "photo-thumb"} btn-view-photo" title="Ver foto de soporte" />`;
+    }
+    const badge = getDocBadge(m.soporteTipo, m.soporteNombre, m.fotoSoporte);
+    const label = m.soporteNombre || `Documento ${badge.tag}`;
+    return `
+        <button type="button" data-view-photo="${escapeHtml(m.id)}" class="doc-chip btn-view-photo" title="Abrir ${escapeHtml(label)}" style="cursor:pointer;">
+            <span class="doc-chip-tag ${badge.cls}">${badge.tag}</span>
+            <span class="doc-chip-name" style="max-width:${compact ? "110px" : "160px"};">${escapeHtml(label)}</span>
+        </button>
+    `;
+}
+
 function renderHoyPendientes() {
     const box = document.getElementById("hoyPendientesLista");
-    const pendientes = movimientos.filter((m) => !isIngreso(m.tipo) && m.estadoSoporte !== "CON_SOPORTE");
+    const pendientes = sortByFechaDesc(movimientos).filter((m) => !isIngreso(m.tipo) && m.estadoSoporte !== "CON_SOPORTE");
 
     if (!pendientes.length) {
         box.innerHTML = `<div class="empty-state ok">Todo al día: no tienes egresos pendientes de soporte ni observados.</div>`;
@@ -750,9 +855,7 @@ function renderHoyPendientes() {
     box.innerHTML = pendientes.map((m) => `
         <div class="item-row item-row-split">
             <div class="item-main">
-                ${m.fotoSoporte
-                    ? `<img src="${m.fotoSoporte}" alt="Soporte ${escapeHtml(m.id)}" data-view-photo="${escapeHtml(m.id)}" class="photo-thumb btn-view-photo" />`
-                    : ""}
+                ${renderMovSoporteControl(m, false)}
                 <div style="min-width:0;">
                     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                         <p class="item-title">${escapeHtml(m.contraparte || m.categoria)}</p>
@@ -771,7 +874,7 @@ function renderHoyPendientes() {
                 </div>
                 <div class="item-actions">
                     <button type="button" data-attach-mov="${escapeHtml(m.id)}" class="btn btn-secondary btn-sm btn-attach-mov">
-                        ${m.fotoSoporte ? "Cambiar foto" : "Adjuntar foto"}
+                        ${m.fotoSoporte ? "Cambiar soporte" : "Adjuntar soporte"}
                     </button>
                     <button type="button" data-reg="${escapeHtml(m.id)}" class="btn-amber-soft btn-reg">
                         Marcar con soporte
@@ -821,7 +924,7 @@ function renderAll() {
     const sup = document.getElementById("filtroSoporte").value;
     const tipoFilter = document.getElementById("filtroTipo").value;
 
-    const filtrados = movimientos.filter((m) => {
+    const filtrados = sortByFechaDesc(movimientos).filter((m) => {
         const matchSup = sup === "ALL" || m.estadoSoporte === sup;
         const matchTipo = tipoFilter === "ALL" || m.tipo === tipoFilter;
         const searchable = `${m.id} ${m.fecha} ${m.tipo} ${m.categoria} ${m.codigoCc} ${m.contraparte} ${m.referencia} ${m.nota}`.toLowerCase();
@@ -855,9 +958,7 @@ function renderAll() {
             <td>
                 <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap;">
                     <span class="pill ${pillClassForSoporte(m.estadoSoporte)}">${escapeHtml(m.estadoSoporte)}</span>
-                    ${m.fotoSoporte
-                        ? `<img src="${m.fotoSoporte}" alt="Recibo ${escapeHtml(m.id)}" data-view-photo="${escapeHtml(m.id)}" class="photo-thumb-sm btn-view-photo" title="Ver foto de soporte" />`
-                        : `<button type="button" data-attach-mov="${escapeHtml(m.id)}" class="btn btn-ghost btn-sm btn-attach-mov" title="Adjuntar foto">+ Foto</button>`}
+                    ${renderMovSoporteControl(m, true)}
                 </div>
             </td>
             <td style="white-space:nowrap;">
@@ -894,8 +995,8 @@ function buildReportData() {
         ? `Período: ${desde || "Inicio"} al ${hasta || getLocalDateStr()}`
         : `Período: Historial completo al ${getLocalDateStr()}`;
 
-    const movs = filterByReportRange(movimientos);
-    const hits = filterByReportRange(hitos);
+    const movs = sortByFechaDesc(filterByReportRange(movimientos));
+    const hits = sortByFechaDesc(filterByReportRange(hitos));
 
     let fondos = 0, ejecutado = 0, capex = 0, opex = 0, pendiente = 0, pendCount = 0;
     const porCat = {};
@@ -962,7 +1063,7 @@ function renderReportText() {
     const doneH = d.hits.filter((h) => h.estado === "COMPLETADO").length;
     const pctH = d.hits.length ? Math.round((doneH / d.hits.length) * 100) : 0;
 
-    const hitoLines = d.hits.slice(0, 12).map((h) => {
+    const hitoLines = d.hits.map((h) => {
         const estTxt = h.presupuestoUsd ? ` [Presupuesto est.: $${formatMoney(h.presupuestoUsd)}]` : "";
         const notaTxt = h.nota ? `\n    Nota: ${h.nota}` : "";
         const docs = Array.isArray(h.adjuntos) ? h.adjuntos : [];
@@ -970,7 +1071,7 @@ function renderReportText() {
         return `- [${frenteLabel(h.frente)}] ${h.estado} (${h.fecha}): ${h.paso}${estTxt}${notaTxt}${docsTxt}`;
     }).join("\n") || "- Sin hitos en el período";
 
-    const conFotoCount = d.movs.filter((m) => Boolean(m.fotoSoporte)).length;
+    const conSoporteAdjuntoCount = d.movs.filter((m) => Boolean(m.fotoSoporte)).length;
 
     const txt = [
         `REPORTE EJECUTIVO — HNA INGENIERÍA VZ (LECHERÍA / ANZOÁTEGUI)`,
@@ -981,7 +1082,7 @@ function renderReportText() {
         `- Ejecutado en período: $${formatMoney(d.ejecutado)} (CAPEX: $${formatMoney(d.capex)} | OPEX: $${formatMoney(d.opex)})`,
         `- Balance del período: $${formatMoney(d.saldo)} | Saldo global acumulado: $${formatMoney(d.saldoGlobal)}`,
         `- Pendiente de soporte: $${formatMoney(d.pendiente)} (${d.pendCount} mov.)`,
-        `- Comprobantes con foto adjunta: ${conFotoCount} de ${d.movs.length}`,
+        `- Comprobantes con soporte adjunto: ${conSoporteAdjuntoCount} de ${d.movs.length}`,
         ``,
         `2. EJECUCIÓN POR CATEGORÍA`,
         catLines,
@@ -1029,7 +1130,31 @@ function buildFormalPrintSheet() {
         `;
     }).join("") || `<tr><td colspan="5">Sin hitos registrados en este período.</td></tr>`;
 
-    const photoItems = d.movs.filter((m) => Boolean(m.fotoSoporte));
+    const photoItems = d.movs.filter((m) => m.fotoSoporte && isImageData(m.soporteTipo, m.fotoSoporte));
+    const docItems = d.movs.filter((m) => m.fotoSoporte && !isImageData(m.soporteTipo, m.fotoSoporte));
+    const docsSection = docItems.length ? `
+        <div class="ps-section-title">Documentos de Soporte Adjuntos (${docItems.length})</div>
+        <table class="ps-table">
+            <thead>
+                <tr>
+                    <th>Fecha / ID</th>
+                    <th>Contraparte / Categoría</th>
+                    <th>Documento</th>
+                    <th style="text-align:right;">USD Eq.</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${docItems.map((m) => `
+                    <tr>
+                        <td>${escapeHtml(m.fecha)} · ${escapeHtml(m.id)}</td>
+                        <td>${escapeHtml(m.contraparte || catLabel(m.categoria))}</td>
+                        <td>${escapeHtml(m.soporteNombre || "Documento adjunto")}</td>
+                        <td style="text-align:right;"><strong>$${formatMoney(m.montoUsd)}</strong></td>
+                    </tr>
+                `).join("")}
+            </tbody>
+        </table>
+    ` : "";
     const photosSection = photoItems.length ? `
         <div class="ps-section-title">Anexo Fotográfico de Soportes (${photoItems.length})</div>
         <div class="ps-photos">
@@ -1094,6 +1219,7 @@ function buildFormalPrintSheet() {
             <tbody>${hitoRows}</tbody>
         </table>
 
+        ${docsSection}
         ${photosSection}
     `;
 }
@@ -1128,15 +1254,16 @@ function openPhotoLightbox(movId) {
     const mov = movimientos.find((m) => m.id === movId);
     if (!mov || !mov.fotoSoporte) return;
 
-    document.getElementById("lightboxTitle").textContent = `${mov.id} · ${mov.contraparte || mov.categoria}`;
-    document.getElementById("lightboxMeta").textContent = `${mov.fecha} · $${formatMoney(mov.montoUsd)} USD · ${mov.estadoSoporte}`;
-    document.getElementById("lightboxImg").src = mov.fotoSoporte;
-
-    const dlBtn = document.getElementById("btnDownloadPhoto");
-    dlBtn.href = mov.fotoSoporte;
-    dlBtn.download = `${mov.id}-soporte.jpg`;
-
-    document.getElementById("photoModal").classList.remove("hidden");
+    openStoredFile(
+        {
+            dataUrl: mov.fotoSoporte,
+            type: mov.soporteTipo || (mov.fotoSoporte.startsWith("data:image/") ? "image/jpeg" : "application/octet-stream"),
+            name: mov.soporteNombre || `${mov.id}-soporte.jpg`,
+            sizeKb: mov.soporteSizeKb || 0
+        },
+        `${mov.id} · ${mov.contraparte || mov.categoria}`,
+        `${mov.fecha} · $${formatMoney(mov.montoUsd)} USD · ${mov.estadoSoporte}`
+    );
 }
 
 function closePhotoLightbox() {
@@ -1189,8 +1316,8 @@ async function importJSONFile(file) {
             document.getElementById("tasa").value = loadSettings().tasa;
         }
 
-        movimientos = data.movimientos;
-        hitos = data.hitos;
+        movimientos = sortByFechaDesc(data.movimientos);
+        hitos = sortByFechaDesc(data.hitos);
         cancelEditMov();
         cancelEditHito();
         renderAll();
@@ -1268,30 +1395,46 @@ function bindEvents() {
         renderReportText();
     });
     document.getElementById("btnLoadChecklist").addEventListener("click", async () => {
-        const existingPasos = new Set(hitos.map((h) => h.paso.toLowerCase()));
-        const nuevos = CHECKLIST_VENEZUELA.filter((c) => !existingPasos.has(c.paso.toLowerCase()));
-        if (!nuevos.length) {
-            showToast("El checklist base de Venezuela ya está cargado");
+        const loadedChecklist = hitos.filter(isChecklistHito);
+        if (loadedChecklist.length > 0) {
+            const ok = confirm(
+                `¿Quitar los ${loadedChecklist.length} hitos del checklist base de Venezuela? Tus hitos propios no se verán afectados.`
+            );
+            if (!ok) return;
+            const idsToRemove = new Set(loadedChecklist.map((h) => h.id));
+            for (const h of loadedChecklist) {
+                await deleteItem("hitos", h.id);
+            }
+            hitos = hitos.filter((h) => !idsToRemove.has(h.id));
+            if (editingHitoId && idsToRemove.has(editingHitoId)) {
+                cancelEditHito();
+            }
+            renderHitos();
+            showToast(`Checklist base de Venezuela quitado (${loadedChecklist.length} hitos)`);
             return;
         }
+
         const hoy = getLocalDateStr();
-        for (let i = nuevos.length - 1; i >= 0; i--) {
-            const tpl = nuevos[i];
+        const baseTs = Date.now();
+        for (let i = CHECKLIST_VENEZUELA.length - 1; i >= 0; i--) {
+            const tpl = CHECKLIST_VENEZUELA[i];
             const item = {
-                id: "HITO-" + (Date.now() + i),
+                id: "HITO-" + (baseTs + i),
                 fecha: hoy,
                 frente: tpl.frente,
                 estado: tpl.estado,
                 paso: tpl.paso,
                 presupuestoUsd: null,
                 nota: tpl.nota,
-                adjuntos: []
+                adjuntos: [],
+                isChecklistBase: true
             };
             await putItem("hitos", item);
             hitos.unshift(item);
         }
+        hitos = sortByFechaDesc(hitos);
         renderHitos();
-        showToast(`${nuevos.length} hitos del checklist de Venezuela cargados`);
+        showToast(`${CHECKLIST_VENEZUELA.length} hitos del checklist de Venezuela cargados`);
     });
     document.getElementById("btnWhatsappReport").addEventListener("click", () => {
         const txt = document.getElementById("reportText").value;
@@ -1320,30 +1463,39 @@ function bindEvents() {
     const fotoInput = document.getElementById("fotoInput");
     const dropzone = document.getElementById("photoDropzone");
 
-    document.getElementById("btnSelectPhoto").addEventListener("click", () => fotoInput.click());
-    document.getElementById("btnRemovePhoto").addEventListener("click", () => setFormPhoto(null));
-    document.getElementById("photoPreviewImg").addEventListener("click", () => {
-        if (!pendingPhotoDataUrl) return;
-        document.getElementById("lightboxTitle").textContent = "Vista previa de recibo";
-        document.getElementById("lightboxMeta").textContent = `~${pendingPhotoSizeKb} KB (comprimido)`;
-        document.getElementById("lightboxImg").src = pendingPhotoDataUrl;
-        const dlBtn = document.getElementById("btnDownloadPhoto");
-        dlBtn.href = pendingPhotoDataUrl;
-        dlBtn.download = "recibo-soporte.jpg";
-        document.getElementById("photoModal").classList.remove("hidden");
+    document.getElementById("btnSelectPhoto").addEventListener("click", () => {
+        fotoInput.value = "";
+        fotoInput.click();
     });
+    document.getElementById("btnRemovePhoto").addEventListener("click", () => setFormPhoto(null));
+    const openPendingPreview = () => {
+        if (!pendingPhotoDataUrl) return;
+        openStoredFile(
+            {
+                dataUrl: pendingPhotoDataUrl,
+                type: pendingPhotoType,
+                name: pendingPhotoName || "recibo-soporte.jpg",
+                sizeKb: pendingPhotoSizeKb
+            },
+            pendingPhotoName || "Vista previa de soporte",
+            `~${pendingPhotoSizeKb} KB`
+        );
+    };
+    document.getElementById("photoPreviewImg").addEventListener("click", openPendingPreview);
+    document.getElementById("photoPreviewDocBadge").addEventListener("click", openPendingPreview);
 
     async function handleFormPhotoFile(file) {
         if (!file) return;
         try {
-            const { dataUrl, sizeKb } = await compressImageFile(file);
-            setFormPhoto(dataUrl, sizeKb);
+            const doc = await processAttachmentFile(file);
+            setFormPhoto(doc.dataUrl, doc.sizeKb, doc.name, doc.type);
             // If user had PENDIENTE_SOPORTE selected, suggest/switch to CON_SOPORTE
             const supSel = document.getElementById("estadoSoporte");
             if (supSel.value === "PENDIENTE_SOPORTE") {
                 supSel.value = "CON_SOPORTE";
             }
-            showToast(`Foto adjuntada (~${sizeKb} KB)`);
+            const label = isImageData(doc.type, doc.dataUrl) ? "Foto adjuntada" : `Documento "${doc.name}" adjuntado`;
+            showToast(`${label} (~${doc.sizeKb} KB)`);
         } catch (err) {
             alert(err.message);
         }
@@ -1417,7 +1569,7 @@ function bindEvents() {
         }
     });
 
-    // Quick attach photo from Hoy / Table
+    // Quick attach photo or document from Hoy / Table
     document.getElementById("quickPhotoInput").addEventListener("change", async (e) => {
         const file = e.target.files[0];
         if (!file || !quickAttachMovId) return;
@@ -1425,14 +1577,17 @@ function bindEvents() {
         quickAttachMovId = null;
         if (!mov) return;
         try {
-            const { dataUrl, sizeKb } = await compressImageFile(file);
-            mov.fotoSoporte = dataUrl;
+            const doc = await processAttachmentFile(file);
+            mov.fotoSoporte = doc.dataUrl;
+            mov.soporteNombre = doc.name;
+            mov.soporteTipo = doc.type;
+            mov.soporteSizeKb = doc.sizeKb;
             if (mov.estadoSoporte !== "CON_SOPORTE") {
                 mov.estadoSoporte = "CON_SOPORTE";
             }
             await putItem("movimientos", mov);
             renderAll();
-            showToast(`Recibo guardado en ${mov.id} (~${sizeKb} KB)`);
+            showToast(`Soporte guardado en ${mov.id} (~${doc.sizeKb} KB)`);
         } catch (err) {
             alert(err.message);
         }
@@ -1559,7 +1714,10 @@ function bindEvents() {
             metodoPago: document.getElementById("metodoPago").value,
             referencia: document.getElementById("referencia").value.trim(),
             nota: document.getElementById("nota").value.trim(),
-            fotoSoporte: pendingPhotoDataUrl || null
+            fotoSoporte: pendingPhotoDataUrl || null,
+            soporteNombre: pendingPhotoName || null,
+            soporteTipo: pendingPhotoType || null,
+            soporteSizeKb: pendingPhotoSizeKb || 0
         };
 
         await putItem("movimientos", item);
@@ -1572,6 +1730,7 @@ function bindEvents() {
             movimientos.unshift(item);
             showToast(`Movimiento ${item.id} registrado`);
         }
+        movimientos = sortByFechaDesc(movimientos);
 
         cancelEditMov();
         renderAll();
@@ -1582,6 +1741,7 @@ function bindEvents() {
         e.preventDefault();
         const presRaw = document.getElementById("hitoPresupuesto").value;
         const presupuestoUsd = presRaw !== "" && Number(presRaw) > 0 ? Number(Number(presRaw).toFixed(2)) : null;
+        const existingHito = editingHitoId ? hitos.find((h) => h.id === editingHitoId) : null;
         const hito = {
             id: editingHitoId || ("HITO-" + Date.now()),
             fecha: document.getElementById("hitoFecha").value || getLocalDateStr(),
@@ -1590,7 +1750,8 @@ function bindEvents() {
             paso: document.getElementById("hitoPaso").value.trim(),
             presupuestoUsd,
             nota: document.getElementById("hitoNota").value.trim(),
-            adjuntos: [...pendingHitoDocs]
+            adjuntos: [...pendingHitoDocs],
+            ...(existingHito?.isChecklistBase ? { isChecklistBase: true } : {})
         };
 
         await putItem("hitos", hito);
@@ -1603,6 +1764,7 @@ function bindEvents() {
             hitos.unshift(hito);
             showToast("Hito registrado");
         }
+        hitos = sortByFechaDesc(hitos);
 
         cancelEditHito();
         renderHitos();
@@ -1625,8 +1787,8 @@ function bindEvents() {
 
     try {
         await openDB();
-        movimientos = (await getAll("movimientos")).reverse();
-        hitos = (await getAll("hitos")).reverse();
+        movimientos = sortByFechaDesc(await getAll("movimientos"));
+        hitos = sortByFechaDesc(await getAll("hitos"));
     } catch (err) {
         console.error(err);
         showToast("Error al abrir la base de datos local");

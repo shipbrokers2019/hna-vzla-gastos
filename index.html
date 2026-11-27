@@ -27,7 +27,7 @@
                 <div>
                     <h1 class="brand-title">HNA Ingeniería VZ</h1>
                     <p class="brand-subtitle">
-                        <span>Control de Gastos y Avances · Lechería, Anzoátegui · <span class="mono">v8</span></span>
+                        <span>Control de Gastos y Avances · Lechería, Anzoátegui · <span class="mono">v9</span></span>
                         <span id="networkStatus" class="status-dot">En línea · Local</span>
                     </p>
                 </div>
@@ -123,7 +123,7 @@
                 <div class="section-head">
                     <div>
                         <h2 class="section-title">Atención Hoy — Soportes y Seguimiento</h2>
-                        <p class="section-desc">Egresos pendientes de comprobante o con observación. Puedes adjuntar la foto del recibo directamente.</p>
+                        <p class="section-desc">Egresos pendientes de comprobante o con observación. Puedes adjuntar fotos o documentos (PDF, Word, Excel) directamente.</p>
                     </div>
                     <button type="button" data-tab="movimientos" class="btn btn-secondary btn-sm">
                         <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true">
@@ -157,7 +157,7 @@
                 <div class="section-head">
                     <div>
                         <h2 class="section-title">Registro de Movimiento</h2>
-                        <p class="section-desc">Guarda gastos, aportes y adjunta el soporte fotográfico comprimido en local.</p>
+                        <p class="section-desc">Guarda gastos, aportes y adjunta fotos o documentos de soporte en local.</p>
                     </div>
                 </div>
 
@@ -280,24 +280,24 @@
                     </div>
 
                     <div class="field">
-                        <label>Foto de Recibo / Soporte (Opcional)</label>
+                        <label>Soporte / Comprobante (Foto o Documento — Opcional)</label>
                         <div id="photoDropzone" class="photo-uploader">
                             <div class="photo-upload-row">
                                 <div class="photo-upload-info">
                                     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                                        <circle cx="12" cy="13" r="4" />
+                                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                                     </svg>
-                                    <span>Toma una foto o arrastra el comprobante aquí (se comprime automáticamente).</span>
+                                    <span>Toma una foto o arrastra un documento aquí (PDF, Word, Excel, imagen).</span>
                                 </div>
-                                <button id="btnSelectPhoto" type="button" class="btn btn-secondary btn-sm">Adjuntar Foto</button>
-                                <input id="fotoInput" type="file" accept="image/*" class="hidden" />
+                                <button id="btnSelectPhoto" type="button" class="btn btn-secondary btn-sm">Adjuntar Archivo</button>
+                                <input id="fotoInput" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden" />
                             </div>
                             <div id="photoPreviewBox" class="photo-preview-box hidden">
                                 <img id="photoPreviewImg" class="photo-thumb" alt="Vista previa del recibo" />
+                                <button id="photoPreviewDocBadge" type="button" class="doc-preview-badge hidden" title="Abrir documento"></button>
                                 <div style="flex:1; min-width:0;">
                                     <div id="photoPreviewMeta" class="field-hint"></div>
-                                    <span class="text-subtle" style="font-size:0.72rem;">Clic en la miniatura para ampliar</span>
+                                    <span id="photoPreviewHint" class="text-subtle" style="font-size:0.72rem;">Clic para abrir o ampliar</span>
                                 </div>
                                 <button id="btnRemovePhoto" type="button" class="btn-danger-link">Quitar</button>
                             </div>
@@ -343,7 +343,7 @@
                                 <th>Contraparte / Nota</th>
                                 <th>Código</th>
                                 <th class="text-right">USD Eq.</th>
-                                <th>Soporte / Foto</th>
+                                <th>Soporte / Archivo</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -415,17 +415,17 @@
                     </div>
 
                     <div class="field">
-                        <label>Presupuestos / Documentos (PDF o Fotos)</label>
+                        <label>Presupuestos / Documentos (Fotos, PDF, Word, Excel)</label>
                         <div class="photo-uploader">
                             <div class="photo-upload-row">
                                 <div class="photo-upload-info">
                                     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                                         <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                                     </svg>
-                                    <span>Adjunta cotizaciones, PDFs o fotos de presupuestos (múltiples archivos).</span>
+                                    <span>Adjunta cotizaciones, PDFs, Word, Excel o fotos (múltiples archivos).</span>
                                 </div>
                                 <button id="btnSelectHitoFiles" type="button" class="btn btn-secondary btn-sm">Adjuntar</button>
-                                <input id="hitoFileInput" type="file" accept="image/*,application/pdf,.pdf" multiple class="hidden" />
+                                <input id="hitoFileInput" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple class="hidden" />
                             </div>
                             <div id="hitoFilesPreview" class="doc-chip-list hidden"></div>
                         </div>
@@ -476,8 +476,8 @@
     </div>
 
     <!-- Inputs ocultos para adjuntar rápido desde Hoy, Tabla o Hitos -->
-    <input id="quickPhotoInput" type="file" accept="image/*" class="hidden" />
-    <input id="quickHitoFileInput" type="file" accept="image/*,application/pdf,.pdf" multiple class="hidden" />
+    <input id="quickPhotoInput" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden" />
+    <input id="quickHitoFileInput" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple class="hidden" />
 
     <!-- Navegación móvil inferior -->
     <nav class="mob-nav" aria-label="Navegación móvil">
