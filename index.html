@@ -112,6 +112,16 @@
             <div class="surface">
                 <div class="section-head">
                     <div>
+                        <h2 class="section-title">Ejecución por Categoría y Uso de Fondos</h2>
+                        <p id="catUsageSummary" class="section-desc">Distribución de egresos ejecutados por rubro.</p>
+                    </div>
+                </div>
+                <div id="hoyCategoriasChart" class="cat-chart"></div>
+            </div>
+
+            <div class="surface">
+                <div class="section-head">
+                    <div>
                         <h2 class="section-title">Atención Hoy — Soportes y Seguimiento</h2>
                         <p class="section-desc">Egresos pendientes de comprobante o con observación. Puedes adjuntar la foto del recibo directamente.</p>
                     </div>
@@ -130,9 +140,12 @@
                 <div class="section-head">
                     <div>
                         <h2 class="section-title">Últimos Hitos de Sucursal</h2>
-                        <p class="section-desc">Avances recientes por frente operativo con sus notas de seguimiento.</p>
+                        <p id="hoyHitosProgressText" class="section-desc">Avances recientes por frente operativo con sus notas de seguimiento.</p>
                     </div>
                     <button type="button" data-tab="hitos" class="btn btn-ghost btn-sm">Ver todos</button>
+                </div>
+                <div id="hoyHitosProgressBar" class="progress-wrap hidden">
+                    <div class="progress-track"><div id="hoyHitosProgressFill" class="progress-fill" style="width:0%"></div></div>
                 </div>
                 <div id="hoyHitosPreview" class="item-list"></div>
             </div>
@@ -181,20 +194,33 @@
                         <div class="field">
                             <label for="categoria">Categoría</label>
                             <select id="categoria">
-                                <option value="FONDO_INICIAL">FONDO_INICIAL</option>
-                                <option value="CONST_LEGAL">CONST_LEGAL (CAPEX)</option>
-                                <option value="LOCAL_ADEC">LOCAL_ADEC (CAPEX)</option>
-                                <option value="ALQ_OFICINA">ALQ_OFICINA (Alquiler / Sede)</option>
-                                <option value="EQUIP_MOB">EQUIP_MOB (CAPEX)</option>
-                                <option value="NOMINA_HON">NOMINA_HON (Nómina / Honorarios)</option>
-                                <option value="VIAT_CAMPO">VIAT_CAMPO (OPEX)</option>
-                                <option value="SERV_CONECT">SERV_CONECT (OPEX)</option>
-                                <option value="INSUMOS_OFIC">INSUMOS_OFIC (Insumos Oficina)</option>
-                                <option value="SERV_EXT_ADM">SERV_EXT_ADM (Servicios Adm. Ext.)</option>
-                                <option value="IMP_RETENC">IMP_RETENC (Impuestos / Retenciones)</option>
-                                <option value="BANC_COMIS">BANC_COMIS (Comisiones Bancarias)</option>
-                                <option value="COBROS_CLIENTES">COBROS_CLIENTES (Ingresos Operación)</option>
-                                <option value="PROY_OP">PROY_OP (OPEX/PROY)</option>
+                                <optgroup label="Ingresos / Fondos">
+                                    <option value="FONDO_INICIAL">Aporte / Anticipo Casa Matriz</option>
+                                    <option value="COBROS_CLIENTES">Cobros a Clientes / Operación</option>
+                                </optgroup>
+                                <optgroup label="Legal y Trámites (Venezuela)">
+                                    <option value="CONST_LEGAL">Registro Mercantil / Constitución</option>
+                                    <option value="SENIAT_RIF">SENIAT / RIF / Trámites Fiscales</option>
+                                    <option value="ALCALDIA_PATENTE">Alcaldía / Patente / Bomberos</option>
+                                    <option value="ENTES_LABORALES">IVSS / INCES / FAOV / RNET</option>
+                                    <option value="GESTORIA_NOTARIA">Gestoría, Notaría y Aranceles</option>
+                                </optgroup>
+                                <optgroup label="Oficina y Equipamiento">
+                                    <option value="ALQ_OFICINA">Alquiler / Depósito de Local</option>
+                                    <option value="LOCAL_ADEC">Adecuación y Remodelación Local</option>
+                                    <option value="EQUIP_MOB">Equipos, Tecnología y Mobiliario</option>
+                                </optgroup>
+                                <optgroup label="Operación y Administración">
+                                    <option value="HONORARIOS_PROF">Honorarios (Abogado / Contador)</option>
+                                    <option value="NOMINA_HON">Nómina / Personal Local</option>
+                                    <option value="SERV_CONECT">Internet, Telefonía y Servicios</option>
+                                    <option value="VIAT_CAMPO">Transporte, Combustible y Viáticos</option>
+                                    <option value="INSUMOS_OFIC">Papelería e Insumos de Oficina</option>
+                                    <option value="IMP_RETENC">Impuestos y Retenciones (IVA/ISLR/IGTF)</option>
+                                    <option value="BANC_COMIS">Comisiones Bancarias / Cambio</option>
+                                    <option value="SERV_EXT_ADM">Servicios Administrativos Externos</option>
+                                    <option value="PROY_OP">Otros Gastos Operativos</option>
+                                </optgroup>
                             </select>
                         </div>
                         <div class="field">
@@ -230,7 +256,19 @@
                         </div>
                     </div>
 
-                    <div class="form-grid cols-2">
+                    <div class="form-grid cols-3">
+                        <div class="field">
+                            <label for="metodoPago">Método de Pago</label>
+                            <select id="metodoPago">
+                                <option value="EFECTIVO_USD">Efectivo USD</option>
+                                <option value="ZELLE">Zelle</option>
+                                <option value="PAGO_MOVIL">Pago Móvil (Bs.)</option>
+                                <option value="TRANSF_BS">Transferencia Bs.</option>
+                                <option value="TRANSF_USD">Transferencia USD</option>
+                                <option value="TARJETA">Tarjeta / Punto</option>
+                                <option value="OTRO">Otro</option>
+                            </select>
+                        </div>
                         <div class="field">
                             <label for="referencia">Referencia / Comprobante</label>
                             <input id="referencia" type="text" placeholder="Ej. FAC-001 / REC-TEMP-12" />
@@ -336,14 +374,18 @@
                     <div class="field">
                         <label for="hitoFrente">Frente Operativo</label>
                         <select id="hitoFrente">
-                            <option value="LEGAL_REGISTRO">LEGAL_REGISTRO</option>
-                            <option value="LOCAL_OFICINA">LOCAL_OFICINA</option>
-                            <option value="BANCA_FISCAL">BANCA_FISCAL</option>
-                            <option value="NOMINA_RRHH">NOMINA_RRHH</option>
-                            <option value="CONTABILIDAD_IMPUESTOS">CONTABILIDAD_IMPUESTOS</option>
-                            <option value="COBRANZA_CARTERA">COBRANZA_CARTERA</option>
-                            <option value="COMERCIAL_OPERATIVO">COMERCIAL_OPERATIVO</option>
-                            <option value="SISTEMAS_CONTROL">SISTEMAS_CONTROL</option>
+                            <option value="LEGAL_REGISTRO">Registro Mercantil / Legal</option>
+                            <option value="SENIAT_TRIBUTARIO">SENIAT / RIF / Tributario</option>
+                            <option value="ALCALDIA_PERMISOS">Alcaldía / Patente / Bomberos</option>
+                            <option value="ENTES_LABORALES">IVSS / INCES / FAOV / RNET</option>
+                            <option value="BANCA_FISCAL">Banca y Cuentas Corporativas</option>
+                            <option value="LOCAL_OFICINA">Local / Oficina / Arrendamiento</option>
+                            <option value="CONTABILIDAD_IMPUESTOS">Contabilidad y Facturación</option>
+                            <option value="NOMINA_RRHH">Nómina y Talento Local</option>
+                            <option value="PROVEEDORES_COTIZ">Proveedores y Presupuestos</option>
+                            <option value="SISTEMAS_CONTROL">Internet, Equipos y Operación</option>
+                            <option value="COMERCIAL_OPERATIVO">Comercial / Clientes</option>
+                            <option value="COBRANZA_CARTERA">Cobranza y Cartera</option>
                         </select>
                     </div>
 
@@ -363,8 +405,30 @@
                     </div>
 
                     <div class="field">
+                        <label for="hitoPresupuesto">Presupuesto Estimado USD (Opcional)</label>
+                        <input id="hitoPresupuesto" type="number" step="0.01" min="0" placeholder="Ej. 450.00" />
+                    </div>
+
+                    <div class="field">
                         <label for="hitoNota">Nota / Detalles</label>
                         <textarea id="hitoNota" rows="4" placeholder="Ej. Local Av. Principal: 80 m², $600/mes, 2 meses de depósito, incluye planta eléctrica y estacionamiento..."></textarea>
+                    </div>
+
+                    <div class="field">
+                        <label>Presupuestos / Documentos (PDF o Fotos)</label>
+                        <div class="photo-uploader">
+                            <div class="photo-upload-row">
+                                <div class="photo-upload-info">
+                                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                                    </svg>
+                                    <span>Adjunta cotizaciones, PDFs o fotos de presupuestos (múltiples archivos).</span>
+                                </div>
+                                <button id="btnSelectHitoFiles" type="button" class="btn btn-secondary btn-sm">Adjuntar</button>
+                                <input id="hitoFileInput" type="file" accept="image/*,application/pdf,.pdf" multiple class="hidden" />
+                            </div>
+                            <div id="hitoFilesPreview" class="doc-chip-list hidden"></div>
+                        </div>
                     </div>
 
                     <button id="btnSubmitHito" type="submit" class="btn btn-primary" style="width:100%;">
@@ -390,9 +454,10 @@
                 <div class="section-head">
                     <div>
                         <h2 class="section-title">Bitácora de Hitos</h2>
-                        <p class="section-desc">Cambia el estado en línea o edita cualquier hito y su nota.</p>
+                        <p id="hitosProgressText" class="section-desc">Cambia el estado en línea o edita cualquier hito y su nota.</p>
                     </div>
                     <div class="filter-bar">
+                        <button id="btnLoadChecklist" type="button" class="btn btn-secondary btn-sm">Cargar checklist Venezuela</button>
                         <select id="filtroHitoEstado" aria-label="Filtrar hitos por estado">
                             <option value="ALL">Todos los estados</option>
                             <option value="EN_CURSO">EN_CURSO</option>
@@ -402,13 +467,17 @@
                         </select>
                     </div>
                 </div>
+                <div id="hitosProgressBar" class="progress-wrap hidden">
+                    <div class="progress-track"><div id="hitosProgressFill" class="progress-fill" style="width:0%"></div></div>
+                </div>
                 <div id="hitosLista" class="item-list hito-scroll"></div>
             </div>
         </section>
     </div>
 
-    <!-- Input oculto para adjuntar foto rápida desde Hoy o Tabla -->
+    <!-- Inputs ocultos para adjuntar rápido desde Hoy, Tabla o Hitos -->
     <input id="quickPhotoInput" type="file" accept="image/*" class="hidden" />
+    <input id="quickHitoFileInput" type="file" accept="image/*,application/pdf,.pdf" multiple class="hidden" />
 
     <!-- Navegación móvil inferior -->
     <nav class="mob-nav" aria-label="Navegación móvil">
@@ -450,9 +519,22 @@
                 <button id="btnCloseReport" type="button" class="btn btn-ghost btn-sm">Cerrar ✕</button>
             </div>
             <div class="modal-body">
+                <div class="report-range-bar">
+                    <label>
+                        <span>Desde</span>
+                        <input id="reportDesde" type="date" />
+                    </label>
+                    <label>
+                        <span>Hasta</span>
+                        <input id="reportHasta" type="date" />
+                    </label>
+                    <button id="btnReportClearRange" type="button" class="btn btn-ghost btn-sm">Todo el historial</button>
+                </div>
                 <textarea id="reportText" class="report-textarea" readonly></textarea>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer" style="flex-wrap:wrap;">
+                <button id="btnPrintReport" type="button" class="btn btn-secondary">Imprimir / PDF</button>
+                <button id="btnWhatsappReport" type="button" class="btn btn-success">Enviar por WhatsApp</button>
                 <button id="btnCopyReport" type="button" class="btn btn-primary">Copiar Resumen</button>
             </div>
         </div>
@@ -476,6 +558,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Hoja formal de impresión / PDF (solo visible al imprimir) -->
+    <div id="printSheet" class="print-sheet" aria-hidden="true"></div>
 
     <!-- Toast de confirmación -->
     <div id="toast" class="toast" role="status" aria-live="polite"></div>

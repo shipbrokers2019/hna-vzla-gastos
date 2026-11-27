@@ -2,6 +2,76 @@ const DB_NAME = "HNA_VZLA_DB";
 const DB_VER = 1;
 const SETTINGS_KEY = "hna_vzla_settings_v1";
 
+const METODO_LABELS = {
+    EFECTIVO_USD: "Efectivo USD",
+    ZELLE: "Zelle",
+    PAGO_MOVIL: "Pago Móvil",
+    TRANSF_BS: "Transf. Bs.",
+    TRANSF_USD: "Transf. USD",
+    TARJETA: "Tarjeta",
+    OTRO: "Otro"
+};
+
+const CAT_LABELS = {
+    FONDO_INICIAL: "Aporte Casa Matriz",
+    COBROS_CLIENTES: "Cobros Clientes",
+    CONST_LEGAL: "Registro Mercantil",
+    SENIAT_RIF: "SENIAT / RIF",
+    ALCALDIA_PATENTE: "Alcaldía / Patente",
+    ENTES_LABORALES: "IVSS / INCES / FAOV",
+    GESTORIA_NOTARIA: "Gestoría / Notaría",
+    ALQ_OFICINA: "Alquiler de Local",
+    LOCAL_ADEC: "Adecuación Local",
+    EQUIP_MOB: "Equipos y Mobiliario",
+    HONORARIOS_PROF: "Honorarios Prof.",
+    NOMINA_HON: "Nómina / Personal",
+    SERV_CONECT: "Internet / Servicios",
+    VIAT_CAMPO: "Transporte / Viáticos",
+    INSUMOS_OFIC: "Insumos Oficina",
+    IMP_RETENC: "Impuestos / IGTF",
+    BANC_COMIS: "Comisiones Bancarias",
+    SERV_EXT_ADM: "Serv. Adm. Ext.",
+    PROY_OP: "Otros Operativos"
+};
+
+const FRENTE_LABELS = {
+    LEGAL_REGISTRO: "Registro Mercantil / Legal",
+    SENIAT_TRIBUTARIO: "SENIAT / RIF / Tributario",
+    ALCALDIA_PERMISOS: "Alcaldía / Patente / Bomberos",
+    ENTES_LABORALES: "IVSS / INCES / FAOV / RNET",
+    BANCA_FISCAL: "Banca y Cuentas",
+    LOCAL_OFICINA: "Local / Oficina",
+    CONTABILIDAD_IMPUESTOS: "Contabilidad y Facturación",
+    NOMINA_RRHH: "Nómina y RRHH",
+    PROVEEDORES_COTIZ: "Proveedores y Presupuestos",
+    SISTEMAS_CONTROL: "Internet, Equipos y Operación",
+    COMERCIAL_OPERATIVO: "Comercial / Clientes",
+    COBRANZA_CARTERA: "Cobranza y Cartera"
+};
+
+const CHECKLIST_VENEZUELA = [
+    { frente: "LEGAL_REGISTRO", estado: "EN_CURSO", paso: "Constitución / Registro Mercantil y publicación de acta", nota: "Verificar reserva de nombre, acta constitutiva y aranceles del Registro Mercantil." },
+    { frente: "SENIAT_TRIBUTARIO", estado: "PENDIENTE_TERCERO", paso: "Inscripción de RIF jurídico ante el SENIAT", nota: "Requiere documento constitutivo registrado y recibo de servicio del domicilio fiscal." },
+    { frente: "LOCAL_OFICINA", estado: "EN_CURSO", paso: "Búsqueda, comparación y contrato de arrendamiento de oficina", nota: "Documentar opciones de locales con canon mensual, depósito y servicios incluidos." },
+    { frente: "ALCALDIA_PERMISOS", estado: "PENDIENTE_TERCERO", paso: "Licencia de Actividades Económicas (Alcaldía) y Bomberos", nota: "Conformidad de uso, solvencia municipal y permiso de bomberos del local." },
+    { frente: "BANCA_FISCAL", estado: "PENDIENTE_TERCERO", paso: "Apertura de cuenta bancaria jurídica (Bs. / USD)", nota: "Consignar RIF, acta constitutiva, referencias y balance de apertura." },
+    { frente: "ENTES_LABORALES", estado: "PENDIENTE_TERCERO", paso: "Inscripción laboral obligatoria (IVSS, FAOV, INCES, RNET)", nota: "Registro patronal en entes parafiscales y Ministerio del Trabajo." },
+    { frente: "CONTABILIDAD_IMPUESTOS", estado: "PENDIENTE_TERCERO", paso: "Libros contables, facturación y calendario fiscal (IVA/ISLR)", nota: "Definir imprenta autorizada SENIAT y esquema de retenciones." },
+    { frente: "SISTEMAS_CONTROL", estado: "EN_CURSO", paso: "Instalación de internet, telefonía y puesta en marcha operativa", nota: "Contratar fibra óptica y respaldo eléctrico si aplica." }
+];
+
+function frenteLabel(code) {
+    return FRENTE_LABELS[code] || code;
+}
+
+function catLabel(code) {
+    return CAT_LABELS[code] || code;
+}
+
+function metodoLabel(code) {
+    return METODO_LABELS[code] || code || "—";
+}
+
 let db;
 let movimientos = [];
 let hitos = [];
@@ -11,6 +81,8 @@ let editingHitoId = null;
 let pendingPhotoDataUrl = null;
 let pendingPhotoSizeKb = 0;
 let quickAttachMovId = null;
+let pendingHitoDocs = [];
+let quickAttachHitoId = null;
 
 // --- Helpers ---
 function escapeHtml(str) {
@@ -179,6 +251,106 @@ function setFormPhoto(dataUrl, sizeKb = 0) {
     }
 }
 
+async function processHitoAttachment(file) {
+    if (!file) throw new Error("Archivo inválido.");
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    const isImg = file.type.startsWith("image/");
+
+    if (!isPdf && !isImg) {
+        throw new Error(`Formato no soportado (${file.name}). Usa PDF o imagen.`);
+    }
+
+    if (isImg) {
+        const { dataUrl, sizeKb } = await compressImageFile(file);
+        return {
+            id: "DOC-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+            name: file.name || "presupuesto.jpg",
+            type: "image/jpeg",
+            sizeKb,
+            dataUrl
+        };
+    }
+
+    // PDF: limit 5 MB per file to keep IndexedDB fast
+    if (file.size > 5 * 1024 * 1024) {
+        throw new Error(`El PDF "${file.name}" supera el límite de 5 MB.`);
+    }
+
+    const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("No se pudo leer el PDF."));
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(file);
+    });
+
+    return {
+        id: "DOC-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+        name: file.name || "documento.pdf",
+        type: "application/pdf",
+        sizeKb: Math.max(1, Math.round(file.size / 1024)),
+        dataUrl
+    };
+}
+
+function renderPendingHitoDocs() {
+    const box = document.getElementById("hitoFilesPreview");
+    if (!pendingHitoDocs.length) {
+        box.innerHTML = "";
+        box.classList.add("hidden");
+        return;
+    }
+    box.classList.remove("hidden");
+    box.innerHTML = pendingHitoDocs.map((doc) => {
+        const isPdf = doc.type === "application/pdf";
+        return `
+            <span class="doc-chip">
+                <span class="doc-chip-tag ${isPdf ? "pdf" : ""}">${isPdf ? "PDF" : "IMG"}</span>
+                <span class="doc-chip-name" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</span>
+                <span class="mono text-subtle" style="font-size:0.68rem;">${doc.sizeKb}KB</span>
+                <button type="button" data-remove-pending-doc="${escapeHtml(doc.id)}" class="doc-chip-remove btn-remove-pending-doc" aria-label="Quitar documento">✕</button>
+            </span>
+        `;
+    }).join("");
+}
+
+function openHitoDocument(hitoId, docId) {
+    const h = hitos.find((x) => x.id === hitoId);
+    const doc = h?.adjuntos?.find((d) => d.id === docId);
+    if (!doc) return;
+
+    if (doc.type === "application/pdf") {
+        // Convert DataURL to Blob URL for reliable PDF viewing/downloading on mobile & desktop
+        fetch(doc.dataUrl)
+            .then((r) => r.blob())
+            .then((blob) => {
+                const url = URL.createObjectURL(blob);
+                const win = window.open(url, "_blank");
+                if (!win) {
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = doc.name || "documento.pdf";
+                    a.click();
+                }
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
+            })
+            .catch(() => {
+                const a = document.createElement("a");
+                a.href = doc.dataUrl;
+                a.download = doc.name || "documento.pdf";
+                a.click();
+            });
+        return;
+    }
+
+    document.getElementById("lightboxTitle").textContent = `${h.frente} · ${doc.name}`;
+    document.getElementById("lightboxMeta").textContent = `${h.fecha} · ~${doc.sizeKb || 0} KB`;
+    document.getElementById("lightboxImg").src = doc.dataUrl;
+    const dlBtn = document.getElementById("btnDownloadPhoto");
+    dlBtn.href = doc.dataUrl;
+    dlBtn.download = doc.name || "presupuesto.jpg";
+    document.getElementById("photoModal").classList.remove("hidden");
+}
+
 // --- Business Logic ---
 function calcUSD(moneda, monto, tasa) {
     const m = Number(monto) || 0;
@@ -301,6 +473,7 @@ function startEditMov(id) {
     }
     document.getElementById("contraparte").value = mov.contraparte || "";
     document.getElementById("estadoSoporte").value = mov.estadoSoporte || "CON_SOPORTE";
+    document.getElementById("metodoPago").value = mov.metodoPago || "EFECTIVO_USD";
     document.getElementById("referencia").value = mov.referencia || "";
     document.getElementById("nota").value = mov.nota || "";
     setFormPhoto(mov.fotoSoporte || null);
@@ -336,7 +509,10 @@ function startEditHito(id) {
     document.getElementById("hitoFrente").value = h.frente;
     document.getElementById("hitoEstado").value = h.estado;
     document.getElementById("hitoPaso").value = h.paso || "";
+    document.getElementById("hitoPresupuesto").value = h.presupuestoUsd ?? "";
     document.getElementById("hitoNota").value = h.nota || "";
+    pendingHitoDocs = Array.isArray(h.adjuntos) ? [...h.adjuntos] : [];
+    renderPendingHitoDocs();
 
     document.getElementById("hitoEditLabel").textContent = `Editando hito (${h.frente})`;
     document.getElementById("hitoEditBanner").classList.remove("hidden");
@@ -350,6 +526,8 @@ function cancelEditHito() {
     editingHitoId = null;
     document.getElementById("hitoForm").reset();
     document.getElementById("hitoFecha").value = getLocalDateStr();
+    pendingHitoDocs = [];
+    renderPendingHitoDocs();
     document.getElementById("hitoEditBanner").classList.add("hidden");
     document.getElementById("btnSubmitHito").textContent = "Registrar Hito";
 }
@@ -421,12 +599,60 @@ function renderHitos() {
     const filtro = document.getElementById("filtroHitoEstado").value;
     const visibles = hitos.filter((h) => filtro === "ALL" || h.estado === filtro);
 
-    ul.innerHTML = visibles.map((h) => `
+    // Progress bar calculation
+    const totalH = hitos.length;
+    const doneH = hitos.filter((h) => h.estado === "COMPLETADO").length;
+    const pctH = totalH ? Math.round((doneH / totalH) * 100) : 0;
+
+    const hitoProgText = document.getElementById("hitosProgressText");
+    const hitoProgBar = document.getElementById("hitosProgressBar");
+    const hitoProgFill = document.getElementById("hitosProgressFill");
+    const hoyProgText = document.getElementById("hoyHitosProgressText");
+    const hoyProgBar = document.getElementById("hoyHitosProgressBar");
+    const hoyProgFill = document.getElementById("hoyHitosProgressFill");
+
+    if (totalH > 0) {
+        const msg = `Avance de apertura: ${doneH} de ${totalH} hitos completados (${pctH}%)`;
+        hitoProgText.textContent = msg;
+        hoyProgText.textContent = msg;
+        hitoProgBar.classList.remove("hidden");
+        hoyProgBar.classList.remove("hidden");
+        hitoProgFill.style.width = `${pctH}%`;
+        hoyProgFill.style.width = `${pctH}%`;
+    } else {
+        hitoProgText.textContent = "Cambia el estado en línea, adjunta presupuestos o carga el checklist base de Venezuela.";
+        hoyProgText.textContent = "Avances recientes por frente operativo con sus notas de seguimiento.";
+        hitoProgBar.classList.add("hidden");
+        hoyProgBar.classList.add("hidden");
+    }
+
+    ul.innerHTML = visibles.map((h) => {
+        const docs = Array.isArray(h.adjuntos) ? h.adjuntos : [];
+        const docsHtml = docs.length ? `
+            <div class="doc-chip-list" style="margin-top:4px;">
+                ${docs.map((doc) => {
+                    const isPdf = doc.type === "application/pdf";
+                    return `
+                        <span class="doc-chip">
+                            <button type="button" data-open-hito="${escapeHtml(h.id)}" data-open-doc="${escapeHtml(doc.id)}" class="doc-chip-btn btn-open-hito-doc" title="Abrir ${escapeHtml(doc.name)}">
+                                <span class="doc-chip-tag ${isPdf ? "pdf" : ""}">${isPdf ? "PDF" : "IMG"}</span>
+                                <span class="doc-chip-name">${escapeHtml(doc.name)}</span>
+                                <span class="mono text-subtle" style="font-size:0.68rem;">${doc.sizeKb || 0}KB</span>
+                            </button>
+                            <button type="button" data-del-hito-ref="${escapeHtml(h.id)}" data-del-doc="${escapeHtml(doc.id)}" class="doc-chip-remove btn-del-hito-doc" aria-label="Eliminar documento">✕</button>
+                        </span>
+                    `;
+                }).join("")}
+            </div>
+        ` : "";
+
+        return `
         <div class="item-row">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                    <span class="mono" style="font-size:0.78rem; font-weight:700; color:var(--accent-hover);">${escapeHtml(h.frente)}</span>
+                    <span class="mono" style="font-size:0.78rem; font-weight:700; color:var(--accent-hover);">${escapeHtml(frenteLabel(h.frente))}</span>
                     <span class="pill ${pillClassForHito(h.estado)}">${escapeHtml(h.estado)}</span>
+                    ${h.presupuestoUsd ? `<span class="pill pill-slate mono">Est. $${formatMoney(h.presupuestoUsd)}</span>` : ""}
                     <span class="mono text-subtle" style="font-size:0.72rem;">${escapeHtml(h.fecha)}</span>
                 </div>
                 <div class="item-actions">
@@ -438,26 +664,78 @@ function renderHitos() {
                         <option value="COMPLETADO" ${h.estado === "COMPLETADO" ? "selected" : ""}>COMPLETADO</option>
                         <option value="BLOQUEADO" ${h.estado === "BLOQUEADO" ? "selected" : ""}>BLOQUEADO</option>
                     </select>
+                    <button type="button" data-attach-hito="${escapeHtml(h.id)}" class="btn btn-secondary btn-sm btn-attach-hito">+ Doc</button>
                     <button type="button" data-edit-hito="${escapeHtml(h.id)}" class="btn btn-ghost btn-sm btn-edit-hito">Editar</button>
                     <button type="button" data-del-hito="${escapeHtml(h.id)}" class="btn-danger-link btn-del-hito">Borrar</button>
                 </div>
             </div>
             <p class="item-title" style="font-weight:500;">${escapeHtml(h.paso)}</p>
             ${h.nota ? `<p class="item-note">${escapeHtml(h.nota)}</p>` : ""}
+            ${docsHtml}
         </div>
-    `).join("") || `<div class="empty-state">No hay hitos para mostrar.</div>`;
+    `;
+    }).join("") || `<div class="empty-state">No hay hitos para mostrar.</div>`;
 
     const preview = document.getElementById("hoyHitosPreview");
-    preview.innerHTML = hitos.slice(0, 4).map((h) => `
+    preview.innerHTML = hitos.slice(0, 4).map((h) => {
+        const docsCount = Array.isArray(h.adjuntos) ? h.adjuntos.length : 0;
+        return `
         <div class="item-row">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
-                <span class="mono" style="font-size:0.76rem; font-weight:700; color:var(--accent-hover);">${escapeHtml(h.frente)}</span>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <span class="mono" style="font-size:0.76rem; font-weight:700; color:var(--accent-hover);">${escapeHtml(frenteLabel(h.frente))}</span>
+                    ${h.presupuestoUsd ? `<span class="pill pill-slate mono">Est. $${formatMoney(h.presupuestoUsd)}</span>` : ""}
+                    ${docsCount ? `<span class="pill pill-sky">${docsCount} ${docsCount === 1 ? "doc" : "docs"}</span>` : ""}
+                </div>
                 <span class="pill ${pillClassForHito(h.estado)}">${escapeHtml(h.estado)}</span>
             </div>
             <p class="item-title" style="font-size:0.86rem; font-weight:500;">${escapeHtml(h.paso)}</p>
             ${h.nota ? `<p class="item-note">${escapeHtml(h.nota)}</p>` : ""}
         </div>
-    `).join("") || `<div class="empty-state">Sin hitos registrados aún.</div>`;
+    `;
+    }).join("") || `<div class="empty-state">Sin hitos registrados aún.</div>`;
+}
+
+function renderHoyCategorias(totals) {
+    const box = document.getElementById("hoyCategoriasChart");
+    const summary = document.getElementById("catUsageSummary");
+    const porCat = {};
+    movimientos.forEach((m) => {
+        if (isEgresoCaja(m.tipo)) {
+            porCat[m.categoria] = (porCat[m.categoria] || 0) + (Number(m.montoUsd) || 0);
+        }
+    });
+
+    const entries = Object.entries(porCat).sort((a, b) => b[1] - a[1]);
+    if (totals.fondos > 0) {
+        const pctUsed = Math.min(999, Math.round((totals.ejecutado / totals.fondos) * 100));
+        summary.textContent = `Uso del fondo recibido: ${pctUsed}% ejecutado ($${formatMoney(totals.ejecutado)} de $${formatMoney(totals.fondos)} USD).`;
+    } else {
+        summary.textContent = "Distribución de egresos ejecutados por rubro.";
+    }
+
+    if (!entries.length) {
+        box.innerHTML = `<div class="empty-state" style="padding:12px;">Aún no hay egresos ejecutados para graficar.</div>`;
+        return;
+    }
+
+    const totalEj = totals.ejecutado || 1;
+    box.innerHTML = entries.map(([cat, amount]) => {
+        const pct = Math.round((amount / totalEj) * 100);
+        return `
+            <div class="cat-row">
+                <div class="cat-row-head">
+                    <span style="font-weight:600; color:var(--text-primary);">${escapeHtml(catLabel(cat))}</span>
+                    <span class="mono" style="color:var(--text-secondary);">
+                        <strong style="color:var(--accent-hover);">$${formatMoney(amount)}</strong> · ${pct}%
+                    </span>
+                </div>
+                <div class="cat-bar-track">
+                    <div class="cat-bar-fill" style="width:${Math.max(2, pct)}%;"></div>
+                </div>
+            </div>
+        `;
+    }).join("");
 }
 
 function renderHoyPendientes() {
@@ -559,7 +837,8 @@ function renderAll() {
             </td>
             <td>
                 <div style="font-weight:600; color:var(--text-primary);">${escapeHtml(m.tipo)}</div>
-                <div class="text-muted" style="font-size:0.76rem;">${escapeHtml(m.categoria)}</div>
+                <div class="text-muted" style="font-size:0.76rem;">${escapeHtml(catLabel(m.categoria))}</div>
+                ${m.metodoPago ? `<div class="text-subtle" style="font-size:0.7rem;">${escapeHtml(metodoLabel(m.metodoPago))}</div>` : ""}
             </td>
             <td>
                 <div style="font-weight:500; color:var(--text-primary);">${escapeHtml(m.contraparte || "—")}</div>
@@ -591,59 +870,236 @@ function renderAll() {
         </tr>
     `).join("") || `<tr><td colspan="7" class="empty-state">No hay movimientos registrados con estos filtros.</td></tr>`;
 
+    renderHoyCategorias(t);
     renderHoyPendientes();
     renderHitos();
 }
 
 // --- Report & Lightbox Modals ---
-function openReport() {
-    const t = computeTotals();
+function filterByReportRange(items) {
+    const desde = document.getElementById("reportDesde").value;
+    const hasta = document.getElementById("reportHasta").value;
+    return items.filter((item) => {
+        const f = item.fecha || "";
+        if (desde && f < desde) return false;
+        if (hasta && f > hasta) return false;
+        return true;
+    });
+}
+
+function buildReportData() {
+    const desde = document.getElementById("reportDesde").value;
+    const hasta = document.getElementById("reportHasta").value;
+    const rangeLabel = desde || hasta
+        ? `Período: ${desde || "Inicio"} al ${hasta || getLocalDateStr()}`
+        : `Período: Historial completo al ${getLocalDateStr()}`;
+
+    const movs = filterByReportRange(movimientos);
+    const hits = filterByReportRange(hitos);
+
+    let fondos = 0, ejecutado = 0, capex = 0, opex = 0, pendiente = 0, pendCount = 0;
     const porCat = {};
+    const porMetodo = {};
     const pendItems = [];
 
-    movimientos.forEach((m) => {
-        if (isEgresoCaja(m.tipo)) {
-            porCat[m.categoria] = (porCat[m.categoria] || 0) + (Number(m.montoUsd) || 0);
-        }
-        if (!isIngreso(m.tipo) && m.estadoSoporte !== "CON_SOPORTE") {
-            pendItems.push(`- [${m.id}] ${m.categoria} (${m.codigoCc}): $${formatMoney(m.montoUsd)} (${m.estadoSoporte}) - ${m.nota || "Sin nota"}`);
+    movs.forEach((m) => {
+        const usd = Number(m.montoUsd) || 0;
+        if (isIngreso(m.tipo)) {
+            fondos += usd;
+        } else if (m.tipo === "LIQ_ANTICIPO") {
+            if (m.estadoSoporte !== "CON_SOPORTE") {
+                pendiente += usd;
+                pendCount += 1;
+                pendItems.push(`- [${m.id}] ${catLabel(m.categoria)} (${m.codigoCc}): $${formatMoney(usd)} (${m.estadoSoporte}) - ${m.nota || "Sin nota"}`);
+            }
+        } else {
+            ejecutado += usd;
+            if (m.tipo === "GASTO_CAPEX") capex += usd;
+            else opex += usd;
+            porCat[m.categoria] = (porCat[m.categoria] || 0) + usd;
+            const mp = metodoLabel(m.metodoPago);
+            porMetodo[mp] = (porMetodo[mp] || 0) + usd;
+            if (m.estadoSoporte !== "CON_SOPORTE") {
+                pendiente += usd;
+                pendCount += 1;
+                pendItems.push(`- [${m.id}] ${catLabel(m.categoria)} (${m.codigoCc}): $${formatMoney(usd)} (${m.estadoSoporte}) - ${m.nota || "Sin nota"}`);
+            }
         }
     });
 
-    const catLines = Object.entries(porCat)
+    const totalGlobal = computeTotals();
+    return {
+        rangeLabel,
+        movs,
+        hits,
+        fondos,
+        ejecutado,
+        capex,
+        opex,
+        saldo: fondos - ejecutado,
+        saldoGlobal: totalGlobal.saldo,
+        pendiente,
+        pendCount,
+        porCat,
+        porMetodo,
+        pendItems
+    };
+}
+
+function renderReportText() {
+    const d = buildReportData();
+
+    const catLines = Object.entries(d.porCat)
+        .sort((a, b) => b[1] - a[1])
+        .map(([k, v]) => `- ${catLabel(k)}: $${formatMoney(v)}`)
+        .join("\n") || "- Sin gastos ejecutados en el período";
+
+    const metodoLines = Object.entries(d.porMetodo)
         .sort((a, b) => b[1] - a[1])
         .map(([k, v]) => `- ${k}: $${formatMoney(v)}`)
-        .join("\n") || "- Sin gastos ejecutados";
+        .join("\n") || "- Sin egresos registrados";
 
-    const hitoLines = hitos.slice(0, 8).map((h) => {
+    const doneH = d.hits.filter((h) => h.estado === "COMPLETADO").length;
+    const pctH = d.hits.length ? Math.round((doneH / d.hits.length) * 100) : 0;
+
+    const hitoLines = d.hits.slice(0, 12).map((h) => {
+        const estTxt = h.presupuestoUsd ? ` [Presupuesto est.: $${formatMoney(h.presupuestoUsd)}]` : "";
         const notaTxt = h.nota ? `\n    Nota: ${h.nota}` : "";
-        return `- [${h.frente}] ${h.estado} (${h.fecha}): ${h.paso}${notaTxt}`;
-    }).join("\n") || "- Sin hitos recientes";
+        const docs = Array.isArray(h.adjuntos) ? h.adjuntos : [];
+        const docsTxt = docs.length ? `\n    Adjuntos (${docs.length}): ${docs.map((x) => x.name).join(", ")}` : "";
+        return `- [${frenteLabel(h.frente)}] ${h.estado} (${h.fecha}): ${h.paso}${estTxt}${notaTxt}${docsTxt}`;
+    }).join("\n") || "- Sin hitos en el período";
 
-    const conFotoCount = movimientos.filter((m) => Boolean(m.fotoSoporte)).length;
+    const conFotoCount = d.movs.filter((m) => Boolean(m.fotoSoporte)).length;
 
     const txt = [
-        `REPORTE HNA INGENIERÍA VZ — LECHERÍA / ANZOÁTEGUI`,
-        `Fecha corte: ${getLocalDateStr()}`,
+        `REPORTE EJECUTIVO — HNA INGENIERÍA VZ (LECHERÍA / ANZOÁTEGUI)`,
+        `Fecha emisión: ${getLocalDateStr()} | ${d.rangeLabel}`,
         ``,
         `1. POSICIÓN DE CAJA (USD EQUIVALENTE)`,
-        `- Fondos / Aportes recibidos: $${formatMoney(t.fondos)}`,
-        `- Ejecutado acumulado: $${formatMoney(t.ejecutado)} (CAPEX: $${formatMoney(t.capex)} | OPEX: $${formatMoney(t.opex)})`,
-        `- Saldo disponible: $${formatMoney(t.saldo)}`,
-        `- Pendiente de soporte: $${formatMoney(t.pendiente)} (${t.pendientesCount} mov.)`,
-        `- Comprobantes con foto adjunta: ${conFotoCount} de ${movimientos.length}`,
+        `- Fondos / Aportes recibidos: $${formatMoney(d.fondos)}`,
+        `- Ejecutado en período: $${formatMoney(d.ejecutado)} (CAPEX: $${formatMoney(d.capex)} | OPEX: $${formatMoney(d.opex)})`,
+        `- Balance del período: $${formatMoney(d.saldo)} | Saldo global acumulado: $${formatMoney(d.saldoGlobal)}`,
+        `- Pendiente de soporte: $${formatMoney(d.pendiente)} (${d.pendCount} mov.)`,
+        `- Comprobantes con foto adjunta: ${conFotoCount} de ${d.movs.length}`,
         ``,
         `2. EJECUCIÓN POR CATEGORÍA`,
         catLines,
         ``,
-        `3. SOPORTES PENDIENTES / OBSERVADOS`,
-        pendItems.length ? pendItems.join("\n") : "- Todo al día con soporte.",
+        `3. EGRESOS POR MÉTODO DE PAGO`,
+        metodoLines,
         ``,
-        `4. HITOS DE SUCURSAL`,
+        `4. SOPORTES PENDIENTES / OBSERVADOS`,
+        d.pendItems.length ? d.pendItems.join("\n") : "- Todo al día con soporte.",
+        ``,
+        `5. HITOS DE APERTURA (${doneH}/${d.hits.length} completados · ${pctH}%)`,
         hitoLines
     ].join("\n");
 
     document.getElementById("reportText").value = txt;
+}
+
+function buildFormalPrintSheet() {
+    const d = buildReportData();
+    const doneH = d.hits.filter((h) => h.estado === "COMPLETADO").length;
+    const pctH = d.hits.length ? Math.round((doneH / d.hits.length) * 100) : 0;
+
+    const movRows = d.movs.map((m) => `
+        <tr>
+            <td>${escapeHtml(m.fecha)}<br/><small>${escapeHtml(m.id)}</small></td>
+            <td><strong>${escapeHtml(m.tipo)}</strong><br/>${escapeHtml(catLabel(m.categoria))}</td>
+            <td>${escapeHtml(m.contraparte || "—")}${m.nota ? `<br/><small>${escapeHtml(m.nota)}</small>` : ""}</td>
+            <td>${escapeHtml(metodoLabel(m.metodoPago))}${m.referencia ? `<br/><small>Ref: ${escapeHtml(m.referencia)}</small>` : ""}</td>
+            <td>${escapeHtml(m.moneda)} ${formatMoney(m.monto)}</td>
+            <td style="text-align:right;"><strong>$${formatMoney(m.montoUsd)}</strong></td>
+            <td>${escapeHtml(m.estadoSoporte)}</td>
+        </tr>
+    `).join("") || `<tr><td colspan="7">Sin movimientos en este período.</td></tr>`;
+
+    const hitoRows = d.hits.map((h) => {
+        const docs = Array.isArray(h.adjuntos) ? h.adjuntos.map((x) => x.name).join(", ") : "";
+        return `
+            <tr>
+                <td>${escapeHtml(h.fecha)}</td>
+                <td>${escapeHtml(frenteLabel(h.frente))}</td>
+                <td><strong>${escapeHtml(h.estado)}</strong></td>
+                <td>${escapeHtml(h.paso)}${h.nota ? `<br/><small>${escapeHtml(h.nota)}</small>` : ""}${docs ? `<br/><small>Docs: ${escapeHtml(docs)}</small>` : ""}</td>
+                <td style="text-align:right;">${h.presupuestoUsd ? "$" + formatMoney(h.presupuestoUsd) : "—"}</td>
+            </tr>
+        `;
+    }).join("") || `<tr><td colspan="5">Sin hitos registrados en este período.</td></tr>`;
+
+    const photoItems = d.movs.filter((m) => Boolean(m.fotoSoporte));
+    const photosSection = photoItems.length ? `
+        <div class="ps-section-title">Anexo Fotográfico de Soportes (${photoItems.length})</div>
+        <div class="ps-photos">
+            ${photoItems.map((m) => `
+                <div class="ps-photo-card">
+                    <img src="${m.fotoSoporte}" alt="Soporte ${escapeHtml(m.id)}" />
+                    <div class="ps-photo-cap">
+                        <strong>${escapeHtml(m.id)}</strong> · ${escapeHtml(m.fecha)} · <strong>$${formatMoney(m.montoUsd)} USD</strong><br/>
+                        ${escapeHtml(m.contraparte || catLabel(m.categoria))} ${m.referencia ? `· Ref: ${escapeHtml(m.referencia)}` : ""}
+                    </div>
+                </div>
+            `).join("")}
+        </div>
+    ` : "";
+
+    document.getElementById("printSheet").innerHTML = `
+        <div class="ps-header">
+            <div>
+                <h1>HNA Ingeniería VZ — Rendición de Cuentas</h1>
+                <p>Sucursal Lechería / Anzoátegui, Venezuela · Reporte para Casa Matriz</p>
+            </div>
+            <div style="text-align:right;">
+                <p><strong>Emisión:</strong> ${getLocalDateStr()}</p>
+                <p>${escapeHtml(d.rangeLabel)}</p>
+            </div>
+        </div>
+
+        <div class="ps-kpis">
+            <div class="ps-kpi"><span>Fondos / Aportes</span><strong>$${formatMoney(d.fondos)}</strong></div>
+            <div class="ps-kpi"><span>Ejecutado (CAPEX/OPEX)</span><strong>$${formatMoney(d.ejecutado)}</strong></div>
+            <div class="ps-kpi"><span>Saldo Global Disponible</span><strong>$${formatMoney(d.saldoGlobal)}</strong></div>
+            <div class="ps-kpi"><span>Avance de Apertura</span><strong>${pctH}% (${doneH}/${d.hits.length})</strong></div>
+        </div>
+
+        <div class="ps-section-title">Detalle de Movimientos (${d.movs.length})</div>
+        <table class="ps-table">
+            <thead>
+                <tr>
+                    <th>Fecha / ID</th>
+                    <th>Tipo / Categoría</th>
+                    <th>Contraparte / Nota</th>
+                    <th>Método / Ref.</th>
+                    <th>Original</th>
+                    <th style="text-align:right;">USD Eq.</th>
+                    <th>Soporte</th>
+                </tr>
+            </thead>
+            <tbody>${movRows}</tbody>
+        </table>
+
+        <div class="ps-section-title">Hitos y Avances de Sucursal (${d.hits.length})</div>
+        <table class="ps-table">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Frente</th>
+                    <th>Estado</th>
+                    <th>Paso / Nota / Documentos</th>
+                    <th style="text-align:right;">Est. USD</th>
+                </tr>
+            </thead>
+            <tbody>${hitoRows}</tbody>
+        </table>
+
+        ${photosSection}
+    `;
+}
+
+function openReport() {
+    renderReportText();
     document.getElementById("reportModal").classList.remove("hidden");
 }
 
@@ -747,7 +1203,7 @@ async function importJSONFile(file) {
 function exportCSV() {
     const headers = [
         "id", "fecha", "tipo", "codigoCc", "categoria", "moneda", "monto",
-        "tasa", "montoUsd", "contraparte", "estadoSoporte", "referencia", "nota", "tieneFoto"
+        "tasa", "montoUsd", "metodoPago", "contraparte", "estadoSoporte", "referencia", "nota", "tieneFoto"
     ];
     const rows = movimientos.map((m) =>
         headers.map((h) => {
@@ -800,6 +1256,47 @@ function bindEvents() {
     document.getElementById("btnOpenReport2").addEventListener("click", openReport);
     document.getElementById("btnCloseReport").addEventListener("click", closeReport);
     document.getElementById("btnCopyReport").addEventListener("click", copyReport);
+    document.getElementById("btnPrintReport").addEventListener("click", () => {
+        buildFormalPrintSheet();
+        window.print();
+    });
+    document.getElementById("reportDesde").addEventListener("change", renderReportText);
+    document.getElementById("reportHasta").addEventListener("change", renderReportText);
+    document.getElementById("btnReportClearRange").addEventListener("click", () => {
+        document.getElementById("reportDesde").value = "";
+        document.getElementById("reportHasta").value = "";
+        renderReportText();
+    });
+    document.getElementById("btnLoadChecklist").addEventListener("click", async () => {
+        const existingPasos = new Set(hitos.map((h) => h.paso.toLowerCase()));
+        const nuevos = CHECKLIST_VENEZUELA.filter((c) => !existingPasos.has(c.paso.toLowerCase()));
+        if (!nuevos.length) {
+            showToast("El checklist base de Venezuela ya está cargado");
+            return;
+        }
+        const hoy = getLocalDateStr();
+        for (let i = nuevos.length - 1; i >= 0; i--) {
+            const tpl = nuevos[i];
+            const item = {
+                id: "HITO-" + (Date.now() + i),
+                fecha: hoy,
+                frente: tpl.frente,
+                estado: tpl.estado,
+                paso: tpl.paso,
+                presupuestoUsd: null,
+                nota: tpl.nota,
+                adjuntos: []
+            };
+            await putItem("hitos", item);
+            hitos.unshift(item);
+        }
+        renderHitos();
+        showToast(`${nuevos.length} hitos del checklist de Venezuela cargados`);
+    });
+    document.getElementById("btnWhatsappReport").addEventListener("click", () => {
+        const txt = document.getElementById("reportText").value;
+        window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, "_blank");
+    });
     document.getElementById("btnExportJSON").addEventListener("click", exportJSON);
     document.getElementById("btnExportCSV").addEventListener("click", exportCSV);
 
@@ -871,6 +1368,55 @@ function bindEvents() {
         handleFormPhotoFile(file);
     });
 
+    // Hitos file uploader (form)
+    const hitoFileInput = document.getElementById("hitoFileInput");
+    document.getElementById("btnSelectHitoFiles").addEventListener("click", () => {
+        hitoFileInput.value = "";
+        hitoFileInput.click();
+    });
+    hitoFileInput.addEventListener("change", async (e) => {
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
+        let added = 0;
+        for (const f of files) {
+            try {
+                const doc = await processHitoAttachment(f);
+                pendingHitoDocs.push(doc);
+                added += 1;
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+        renderPendingHitoDocs();
+        if (added) showToast(`${added} ${added === 1 ? "documento adjuntado" : "documentos adjuntados"}`);
+    });
+
+    // Quick attach documents to existing hito
+    document.getElementById("quickHitoFileInput").addEventListener("change", async (e) => {
+        const files = Array.from(e.target.files || []);
+        const targetId = quickAttachHitoId;
+        quickAttachHitoId = null;
+        if (!files.length || !targetId) return;
+        const h = hitos.find((x) => x.id === targetId);
+        if (!h) return;
+        if (!Array.isArray(h.adjuntos)) h.adjuntos = [];
+        let added = 0;
+        for (const f of files) {
+            try {
+                const doc = await processHitoAttachment(f);
+                h.adjuntos.push(doc);
+                added += 1;
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+        if (added) {
+            await putItem("hitos", h);
+            renderHitos();
+            showToast(`${added} ${added === 1 ? "documento guardado" : "documentos guardados"} en el hito`);
+        }
+    });
+
     // Quick attach photo from Hoy / Table
     document.getElementById("quickPhotoInput").addEventListener("change", async (e) => {
         const file = e.target.files[0];
@@ -931,6 +1477,43 @@ function bindEvents() {
 
         const delHitoBtn = e.target.closest(".btn-del-hito");
         if (delHitoBtn) return deleteHito(delHitoBtn.getAttribute("data-del-hito"));
+
+        const attachHitoBtn = e.target.closest(".btn-attach-hito");
+        if (attachHitoBtn) {
+            quickAttachHitoId = attachHitoBtn.getAttribute("data-attach-hito");
+            const input = document.getElementById("quickHitoFileInput");
+            input.value = "";
+            input.click();
+            return;
+        }
+
+        const openDocBtn = e.target.closest(".btn-open-hito-doc");
+        if (openDocBtn) {
+            openHitoDocument(openDocBtn.getAttribute("data-open-hito"), openDocBtn.getAttribute("data-open-doc"));
+            return;
+        }
+
+        const delDocBtn = e.target.closest(".btn-del-hito-doc");
+        if (delDocBtn) {
+            const hId = delDocBtn.getAttribute("data-del-hito-ref");
+            const dId = delDocBtn.getAttribute("data-del-doc");
+            const h = hitos.find((x) => x.id === hId);
+            if (!h || !Array.isArray(h.adjuntos)) return;
+            if (!confirm("¿Eliminar este documento adjunto del hito?")) return;
+            h.adjuntos = h.adjuntos.filter((d) => d.id !== dId);
+            putItem("hitos", h).then(() => {
+                renderHitos();
+                showToast("Documento eliminado");
+            });
+            return;
+        }
+
+        const remPendingDoc = e.target.closest(".btn-remove-pending-doc");
+        if (remPendingDoc) {
+            const dId = remPendingDoc.getAttribute("data-remove-pending-doc");
+            pendingHitoDocs = pendingHitoDocs.filter((d) => d.id !== dId);
+            renderPendingHitoDocs();
+        }
     });
 
     document.addEventListener("change", (e) => {
@@ -973,6 +1556,7 @@ function bindEvents() {
             montoUsd,
             contraparte: document.getElementById("contraparte").value.trim(),
             estadoSoporte: document.getElementById("estadoSoporte").value,
+            metodoPago: document.getElementById("metodoPago").value,
             referencia: document.getElementById("referencia").value.trim(),
             nota: document.getElementById("nota").value.trim(),
             fotoSoporte: pendingPhotoDataUrl || null
@@ -996,13 +1580,17 @@ function bindEvents() {
     // Submit Hito
     document.getElementById("hitoForm").addEventListener("submit", async (e) => {
         e.preventDefault();
+        const presRaw = document.getElementById("hitoPresupuesto").value;
+        const presupuestoUsd = presRaw !== "" && Number(presRaw) > 0 ? Number(Number(presRaw).toFixed(2)) : null;
         const hito = {
             id: editingHitoId || ("HITO-" + Date.now()),
             fecha: document.getElementById("hitoFecha").value || getLocalDateStr(),
             frente: document.getElementById("hitoFrente").value,
             estado: document.getElementById("hitoEstado").value,
             paso: document.getElementById("hitoPaso").value.trim(),
-            nota: document.getElementById("hitoNota").value.trim()
+            presupuestoUsd,
+            nota: document.getElementById("hitoNota").value.trim(),
+            adjuntos: [...pendingHitoDocs]
         };
 
         await putItem("hitos", hito);
