@@ -324,15 +324,17 @@ function setFormPhoto(dataUrl, sizeKb = 0, name = null, type = null) {
         if (isImg) {
             previewImg.src = pendingPhotoDataUrl;
             previewImg.classList.remove("hidden");
-            previewDocBadge.classList.add("hidden");
+            if (previewDocBadge) previewDocBadge.classList.add("hidden");
             previewMeta.textContent = `${pendingPhotoName ? pendingPhotoName + " · " : ""}~${pendingPhotoSizeKb} KB (comprimido)`;
             if (previewHint) previewHint.textContent = "Clic en la miniatura para ampliar";
         } else {
             const badge = getDocBadge(pendingPhotoType, pendingPhotoName, pendingPhotoDataUrl);
             previewImg.removeAttribute("src");
             previewImg.classList.add("hidden");
-            previewDocBadge.textContent = badge.tag;
-            previewDocBadge.className = `doc-preview-badge ${badge.cls}`;
+            if (previewDocBadge) {
+                previewDocBadge.textContent = badge.tag;
+                previewDocBadge.className = `doc-preview-badge ${badge.cls}`;
+            }
             previewMeta.textContent = `${pendingPhotoName || "Documento adjunto"} · ~${pendingPhotoSizeKb} KB`;
             if (previewHint) previewHint.textContent = "Clic en el ícono para abrir o descargar";
         }
@@ -340,7 +342,7 @@ function setFormPhoto(dataUrl, sizeKb = 0, name = null, type = null) {
     } else {
         previewImg.removeAttribute("src");
         previewImg.classList.remove("hidden");
-        previewDocBadge.classList.add("hidden");
+        if (previewDocBadge) previewDocBadge.classList.add("hidden");
         previewMeta.textContent = "";
         previewBox.classList.add("hidden");
         const input = document.getElementById("fotoInput");
@@ -577,7 +579,6 @@ function startEditHito(id) {
     document.getElementById("hitoFrente").value = h.frente;
     document.getElementById("hitoEstado").value = h.estado;
     document.getElementById("hitoPaso").value = h.paso || "";
-    document.getElementById("hitoPresupuesto").value = h.presupuestoUsd ?? "";
     document.getElementById("hitoNota").value = h.nota || "";
     pendingHitoDocs = Array.isArray(h.adjuntos) ? [...h.adjuntos] : [];
     renderPendingHitoDocs();
@@ -737,7 +738,6 @@ function renderHitos() {
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                     <span class="mono" style="font-size:0.78rem; font-weight:700; color:var(--accent-hover);">${escapeHtml(frenteLabel(h.frente))}</span>
                     <span class="pill ${pillClassForHito(h.estado)}">${escapeHtml(h.estado)}</span>
-                    ${h.presupuestoUsd ? `<span class="pill pill-slate mono">Est. $${formatMoney(h.presupuestoUsd)}</span>` : ""}
                     <span class="mono text-subtle" style="font-size:0.72rem;">${escapeHtml(h.fecha)}</span>
                 </div>
                 <div class="item-actions">
@@ -770,7 +770,6 @@ function renderHitos() {
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                     <span class="mono" style="font-size:0.76rem; font-weight:700; color:var(--accent-hover);">${escapeHtml(frenteLabel(h.frente))}</span>
                     <span class="mono text-subtle" style="font-size:0.72rem;">${escapeHtml(h.fecha)}</span>
-                    ${h.presupuestoUsd ? `<span class="pill pill-slate mono">Est. $${formatMoney(h.presupuestoUsd)}</span>` : ""}
                     ${docsCount ? `<span class="pill pill-sky">${docsCount} ${docsCount === 1 ? "doc" : "docs"}</span>` : ""}
                 </div>
                 <span class="pill ${pillClassForHito(h.estado)}">${escapeHtml(h.estado)}</span>
@@ -1064,11 +1063,10 @@ function renderReportText() {
     const pctH = d.hits.length ? Math.round((doneH / d.hits.length) * 100) : 0;
 
     const hitoLines = d.hits.map((h) => {
-        const estTxt = h.presupuestoUsd ? ` [Presupuesto est.: $${formatMoney(h.presupuestoUsd)}]` : "";
         const notaTxt = h.nota ? `\n    Nota: ${h.nota}` : "";
         const docs = Array.isArray(h.adjuntos) ? h.adjuntos : [];
         const docsTxt = docs.length ? `\n    Adjuntos (${docs.length}): ${docs.map((x) => x.name).join(", ")}` : "";
-        return `- [${frenteLabel(h.frente)}] ${h.estado} (${h.fecha}): ${h.paso}${estTxt}${notaTxt}${docsTxt}`;
+        return `- [${frenteLabel(h.frente)}] ${h.estado} (${h.fecha}): ${h.paso}${notaTxt}${docsTxt}`;
     }).join("\n") || "- Sin hitos en el período";
 
     const conSoporteAdjuntoCount = d.movs.filter((m) => Boolean(m.fotoSoporte)).length;
@@ -1125,10 +1123,9 @@ function buildFormalPrintSheet() {
                 <td>${escapeHtml(frenteLabel(h.frente))}</td>
                 <td><strong>${escapeHtml(h.estado)}</strong></td>
                 <td>${escapeHtml(h.paso)}${h.nota ? `<br/><small>${escapeHtml(h.nota)}</small>` : ""}${docs ? `<br/><small>Docs: ${escapeHtml(docs)}</small>` : ""}</td>
-                <td style="text-align:right;">${h.presupuestoUsd ? "$" + formatMoney(h.presupuestoUsd) : "—"}</td>
             </tr>
         `;
-    }).join("") || `<tr><td colspan="5">Sin hitos registrados en este período.</td></tr>`;
+    }).join("") || `<tr><td colspan="4">Sin hitos registrados en este período.</td></tr>`;
 
     const photoItems = d.movs.filter((m) => m.fotoSoporte && isImageData(m.soporteTipo, m.fotoSoporte));
     const docItems = d.movs.filter((m) => m.fotoSoporte && !isImageData(m.soporteTipo, m.fotoSoporte));
@@ -1213,7 +1210,6 @@ function buildFormalPrintSheet() {
                     <th>Frente</th>
                     <th>Estado</th>
                     <th>Paso / Nota / Documentos</th>
-                    <th style="text-align:right;">Est. USD</th>
                 </tr>
             </thead>
             <tbody>${hitoRows}</tbody>
@@ -1424,7 +1420,6 @@ function bindEvents() {
                 frente: tpl.frente,
                 estado: tpl.estado,
                 paso: tpl.paso,
-                presupuestoUsd: null,
                 nota: tpl.nota,
                 adjuntos: [],
                 isChecklistBase: true
@@ -1481,8 +1476,8 @@ function bindEvents() {
             `~${pendingPhotoSizeKb} KB`
         );
     };
-    document.getElementById("photoPreviewImg").addEventListener("click", openPendingPreview);
-    document.getElementById("photoPreviewDocBadge").addEventListener("click", openPendingPreview);
+    document.getElementById("photoPreviewImg")?.addEventListener("click", openPendingPreview);
+    document.getElementById("photoPreviewDocBadge")?.addEventListener("click", openPendingPreview);
 
     async function handleFormPhotoFile(file) {
         if (!file) return;
@@ -1739,8 +1734,6 @@ function bindEvents() {
     // Submit Hito
     document.getElementById("hitoForm").addEventListener("submit", async (e) => {
         e.preventDefault();
-        const presRaw = document.getElementById("hitoPresupuesto").value;
-        const presupuestoUsd = presRaw !== "" && Number(presRaw) > 0 ? Number(Number(presRaw).toFixed(2)) : null;
         const existingHito = editingHitoId ? hitos.find((h) => h.id === editingHitoId) : null;
         const hito = {
             id: editingHitoId || ("HITO-" + Date.now()),
@@ -1748,7 +1741,6 @@ function bindEvents() {
             frente: document.getElementById("hitoFrente").value,
             estado: document.getElementById("hitoEstado").value,
             paso: document.getElementById("hitoPaso").value.trim(),
-            presupuestoUsd,
             nota: document.getElementById("hitoNota").value.trim(),
             adjuntos: [...pendingHitoDocs],
             ...(existingHito?.isChecklistBase ? { isChecklistBase: true } : {})
