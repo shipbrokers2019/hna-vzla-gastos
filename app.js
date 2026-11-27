@@ -332,6 +332,7 @@ function startEditHito(id) {
     if (!h) return;
     editingHitoId = h.id;
 
+    document.getElementById("hitoFecha").value = h.fecha || getLocalDateStr();
     document.getElementById("hitoFrente").value = h.frente;
     document.getElementById("hitoEstado").value = h.estado;
     document.getElementById("hitoPaso").value = h.paso || "";
@@ -348,6 +349,7 @@ function startEditHito(id) {
 function cancelEditHito() {
     editingHitoId = null;
     document.getElementById("hitoForm").reset();
+    document.getElementById("hitoFecha").value = getLocalDateStr();
     document.getElementById("hitoEditBanner").classList.add("hidden");
     document.getElementById("btnSubmitHito").textContent = "Registrar Hito";
 }
@@ -994,10 +996,9 @@ function bindEvents() {
     // Submit Hito
     document.getElementById("hitoForm").addEventListener("submit", async (e) => {
         e.preventDefault();
-        const existing = editingHitoId ? hitos.find((h) => h.id === editingHitoId) : null;
         const hito = {
             id: editingHitoId || ("HITO-" + Date.now()),
-            fecha: existing ? existing.fecha : getLocalDateStr(),
+            fecha: document.getElementById("hitoFecha").value || getLocalDateStr(),
             frente: document.getElementById("hitoFrente").value,
             estado: document.getElementById("hitoEstado").value,
             paso: document.getElementById("hitoPaso").value.trim(),
@@ -1029,6 +1030,7 @@ function bindEvents() {
     document.getElementById("umbralInput").value = settings.umbral;
     document.getElementById("tasa").value = settings.tasa;
     document.getElementById("fecha").value = getLocalDateStr();
+    document.getElementById("hitoFecha").value = getLocalDateStr();
 
     bindEvents();
     updateNetworkBadge();

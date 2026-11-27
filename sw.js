@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hna-vzla-gastos-v4';
+const CACHE_NAME = 'hna-vzla-gastos-v5';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
