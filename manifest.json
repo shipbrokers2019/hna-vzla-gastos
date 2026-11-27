@@ -1,12 +1,12 @@
 {
   "name": "HNA Ingeniería VZ — Control y Apertura",
   "short_name": "HNA Gastos VZ",
-  "description": "Control de instalación, registro, oficina, hitos y gastos de HNA Ingeniería en Venezuela.",
+  "description": "Control offline de instalación, oficina, hitos con notas, gastos y soportes fotográficos de HNA Ingeniería en Venezuela.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#020617",
-  "theme_color": "#f59e0b",
+  "background_color": "#090d14",
+  "theme_color": "#090d14",
   "orientation": "portrait-primary",
   "icons": [
     {

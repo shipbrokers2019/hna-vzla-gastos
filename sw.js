@@ -1,7 +1,9 @@
-const CACHE_NAME = 'hna-vzla-gastos-v3';
+const CACHE_NAME = 'hna-vzla-gastos-v4';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
+    './styles.css',
+    './app.js',
     './manifest.json',
     './icon.svg'
 ];
@@ -24,9 +26,22 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
     if (event.request.method !== 'GET') return;
+    const url = new URL(event.request.url);
+    if (url.origin !== self.location.origin) return;
+
     event.respondWith(
         caches.match(event.request).then((cached) => {
-            return cached || fetch(event.request).catch(() => caches.match('./index.html'));
+            const fetchPromise = fetch(event.request)
+                .then((res) => {
+                    if (res && res.status === 200) {
+                        const copy = res.clone();
+                        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+                    }
+                    return res;
+                })
+                .catch(() => cached || caches.match('./index.html'));
+
+            return cached || fetchPromise;
         })
     );
 });
