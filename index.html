@@ -27,7 +27,7 @@
                 <div>
                     <h1 class="brand-title">HNA Ingeniería VZ</h1>
                     <p class="brand-subtitle">
-                        <span>Control de Gastos y Avances · Lechería, Anzoátegui · <span class="mono">v9</span></span>
+                        <span>Control de Gastos y Avances · Lechería, Anzoátegui · <span class="mono">v10</span></span>
                         <span id="networkStatus" class="status-dot">En línea · Local</span>
                     </p>
                 </div>
@@ -290,7 +290,7 @@
                                     <span>Toma una foto o arrastra un documento aquí (PDF, Word, Excel, imagen).</span>
                                 </div>
                                 <button id="btnSelectPhoto" type="button" class="btn btn-secondary btn-sm">Adjuntar Archivo</button>
-                                <input id="fotoInput" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden" />
+                                <input id="fotoInput" type="file" class="hidden" />
                             </div>
                             <div id="photoPreviewBox" class="photo-preview-box hidden">
                                 <img id="photoPreviewImg" class="photo-thumb" alt="Vista previa del recibo" />
@@ -425,7 +425,7 @@
                                     <span>Adjunta cotizaciones, PDFs, Word, Excel o fotos (múltiples archivos).</span>
                                 </div>
                                 <button id="btnSelectHitoFiles" type="button" class="btn btn-secondary btn-sm">Adjuntar</button>
-                                <input id="hitoFileInput" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple class="hidden" />
+                                <input id="hitoFileInput" type="file" multiple class="hidden" />
                             </div>
                             <div id="hitoFilesPreview" class="doc-chip-list hidden"></div>
                         </div>
@@ -476,8 +476,8 @@
     </div>
 
     <!-- Inputs ocultos para adjuntar rápido desde Hoy, Tabla o Hitos -->
-    <input id="quickPhotoInput" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden" />
-    <input id="quickHitoFileInput" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple class="hidden" />
+    <input id="quickPhotoInput" type="file" class="hidden" />
+    <input id="quickHitoFileInput" type="file" multiple class="hidden" />
 
     <!-- Navegación móvil inferior -->
     <nav class="mob-nav" aria-label="Navegación móvil">
