@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hna-vzla-gastos-v7';
+const CACHE_NAME = 'hna-vzla-gastos-v8';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -24,24 +24,22 @@ self.addEventListener('activate', (event) => {
     self.clients.claim();
 });
 
+// Network-first: cuando hay internet siempre trae la versión más nueva;
+// si estás offline, sirve la copia en caché al instante.
 self.addEventListener('fetch', (event) => {
     if (event.request.method !== 'GET') return;
     const url = new URL(event.request.url);
     if (url.origin !== self.location.origin) return;
 
     event.respondWith(
-        caches.match(event.request).then((cached) => {
-            const fetchPromise = fetch(event.request)
-                .then((res) => {
-                    if (res && res.status === 200) {
-                        const copy = res.clone();
-                        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-                    }
-                    return res;
-                })
-                .catch(() => cached || caches.match('./index.html'));
-
-            return cached || fetchPromise;
-        })
+        fetch(event.request)
+            .then((res) => {
+                if (res && res.status === 200) {
+                    const copy = res.clone();
+                    caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+                }
+                return res;
+            })
+            .catch(() => caches.match(event.request).then((c) => c || caches.match('./index.html')))
     );
 });
