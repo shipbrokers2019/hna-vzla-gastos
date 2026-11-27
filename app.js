@@ -1220,6 +1220,287 @@ function buildFormalPrintSheet() {
     `;
 }
 
+function exportInteractiveHtmlReport() {
+    const d = buildReportData();
+    const doneH = d.hits.filter((h) => h.estado === "COMPLETADO").length;
+    const pctH = d.hits.length ? Math.round((doneH / d.hits.length) * 100) : 0;
+
+    const attachments = [];
+    const registerAttachment = (att) => {
+        const idx = attachments.length;
+        attachments.push(att);
+        return idx;
+    };
+
+    const renderAttButton = (att) => {
+        const idx = registerAttachment(att);
+        const isImg = isImageData(att.type, att.dataUrl);
+        const badge = getDocBadge(att.type, att.name, att.dataUrl);
+        const safeName = escapeHtml(att.name || (isImg ? "imagen.jpg" : "documento"));
+        if (isImg) {
+            return `<button type="button" class="att-btn att-img-btn" data-att="${idx}" title="Ver ${safeName}">
+                <img src="${att.dataUrl}" alt="${safeName}" class="att-thumb" />
+                <span>${safeName}</span>
+            </button>`;
+        }
+        return `<button type="button" class="att-btn" data-att="${idx}" title="Abrir / descargar ${safeName}">
+            <span class="att-tag ${badge.cls}">${badge.tag}</span>
+            <span>${safeName}</span>
+            ${att.sizeKb ? `<small>${att.sizeKb}KB</small>` : ""}
+        </button>`;
+    };
+
+    const catEntries = Object.entries(d.porCat).sort((a, b) => b[1] - a[1]);
+    const totalEj = d.ejecutado || 1;
+    const catHtml = catEntries.length
+        ? catEntries.map(([cat, amount]) => {
+            const pct = Math.round((amount / totalEj) * 100);
+            return `<div class="bar-row">
+                <div class="bar-head"><span>${escapeHtml(catLabel(cat))}</span><strong>$${formatMoney(amount)} (${pct}%)</strong></div>
+                <div class="bar-track"><div class="bar-fill" style="width:${Math.max(2, pct)}%"></div></div>
+            </div>`;
+        }).join("")
+        : `<p class="muted">Sin egresos ejecutados en el período.</p>`;
+
+    const movRows = d.movs.map((m) => {
+        let soporteHtml = `<span class="muted">—</span>`;
+        if (m.fotoSoporte) {
+            soporteHtml = renderAttButton({
+                name: m.soporteNombre || `${m.id}-soporte.jpg`,
+                type: m.soporteTipo || (m.fotoSoporte.startsWith("data:image/") ? "image/jpeg" : "application/octet-stream"),
+                sizeKb: m.soporteSizeKb || 0,
+                dataUrl: m.fotoSoporte,
+                caption: `${m.id} · ${m.fecha} · $${formatMoney(m.montoUsd)} USD · ${m.contraparte || catLabel(m.categoria)}`
+            });
+        }
+        return `<tr>
+            <td class="mono">${escapeHtml(m.fecha)}<br/><small class="muted">${escapeHtml(m.id)}</small></td>
+            <td><strong>${escapeHtml(m.tipo)}</strong><br/><small>${escapeHtml(catLabel(m.categoria))}</small></td>
+            <td>${escapeHtml(m.contraparte || "—")}${m.referencia ? `<br/><small class="mono muted">Ref: ${escapeHtml(m.referencia)}</small>` : ""}${m.nota ? `<br/><small>${escapeHtml(m.nota)}</small>` : ""}</td>
+            <td>${escapeHtml(metodoLabel(m.metodoPago))}</td>
+            <td class="mono right"><strong>$${formatMoney(m.montoUsd)}</strong>${m.moneda === "VES" ? `<br/><small class="muted">VES ${formatMoney(m.monto)}</small>` : ""}</td>
+            <td><span class="pill ${m.estadoSoporte === "CON_SOPORTE" ? "ok" : m.estadoSoporte === "OBSERVADO" ? "warn" : "bad"}">${escapeHtml(m.estadoSoporte)}</span><div class="att-wrap">${soporteHtml}</div></td>
+        </tr>`;
+    }).join("") || `<tr><td colspan="6" class="muted">Sin movimientos en este período.</td></tr>`;
+
+    const hitoRows = d.hits.map((h) => {
+        const docs = Array.isArray(h.adjuntos) ? h.adjuntos : [];
+        const docsHtml = docs.length
+            ? `<div class="att-wrap">${docs.map((doc) => renderAttButton({
+                name: doc.name || "documento",
+                type: doc.type || "application/octet-stream",
+                sizeKb: doc.sizeKb || 0,
+                dataUrl: doc.dataUrl,
+                caption: `${frenteLabel(h.frente)} · ${h.fecha} · ${doc.name || "Adjunto"}`
+            })).join("")}</div>`
+            : `<span class="muted">—</span>`;
+        const stCls = h.estado === "COMPLETADO" ? "ok" : h.estado === "BLOQUEADO" ? "bad" : h.estado === "PENDIENTE_TERCERO" ? "warn" : "info";
+        return `<tr>
+            <td class="mono">${escapeHtml(h.fecha)}</td>
+            <td><strong>${escapeHtml(frenteLabel(h.frente))}</strong></td>
+            <td><span class="pill ${stCls}">${escapeHtml(h.estado)}</span></td>
+            <td>${escapeHtml(h.paso)}${h.nota ? `<br/><small class="note-box">${escapeHtml(h.nota)}</small>` : ""}</td>
+            <td>${docsHtml}</td>
+        </tr>`;
+    }).join("") || `<tr><td colspan="5" class="muted">Sin hitos registrados en este período.</td></tr>`;
+
+    const safeJson = JSON.stringify(attachments).replace(/</g, "\\u003c");
+    const emissionDate = getLocalDateStr();
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reporte Ejecutivo HNA Ingeniería VZ — ${escapeHtml(emissionDate)}</title>
+<style>
+  :root { --bg:#f8fafc; --card:#ffffff; --ink:#0f172a; --muted:#475569; --line:#e2e8f0; --accent:#d97706; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; background:var(--bg); color:var(--ink); line-height:1.45; padding:18px; }
+  .wrap { max-width:1080px; margin:0 auto; display:flex; flex-direction:column; gap:18px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 20px; box-shadow:0 2px 10px rgba(15,23,42,.04); }
+  header { display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; border-bottom:2px solid var(--ink); padding-bottom:14px; }
+  h1 { margin:0; font-size:1.35rem; }
+  h2 { margin:0 0 12px; font-size:1.02rem; }
+  .sub { margin:4px 0 0; color:var(--muted); font-size:0.86rem; }
+  .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  .muted { color:var(--muted); }
+  .right { text-align:right; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; }
+  .kpi { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:#fff; }
+  .kpi span { display:block; font-size:0.78rem; color:var(--muted); }
+  .kpi strong { display:block; font-size:1.3rem; margin-top:4px; }
+  .bar-row { margin-bottom:9px; }
+  .bar-head { display:flex; justify-content:space-between; font-size:0.84rem; margin-bottom:4px; }
+  .bar-track { height:7px; background:#e2e8f0; border-radius:999px; overflow:hidden; }
+  .bar-fill { height:100%; background:var(--accent); border-radius:999px; }
+  .tbl-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:0.84rem; }
+  th, td { border-bottom:1px solid var(--line); padding:9px 8px; text-align:left; vertical-align:top; }
+  th { background:#f1f5f9; font-size:0.74rem; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); }
+  .pill { display:inline-block; font-size:0.7rem; font-weight:700; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+  .pill.ok { background:#dcfce7; color:#166534; }
+  .pill.warn { background:#fef3c7; color:#92400e; }
+  .pill.bad { background:#ffe4e6; color:#9f1239; }
+  .pill.info { background:#e0f2fe; color:#075985; }
+  .note-box { display:inline-block; margin-top:4px; color:#334155; white-space:pre-wrap; }
+  .att-wrap { display:flex; flex-wrap:wrap; gap:6px; margin-top:5px; }
+  .att-btn { display:inline-flex; align-items:center; gap:6px; border:1px solid #cbd5e1; background:#f8fafc; color:var(--ink); border-radius:8px; padding:4px 8px; font-size:0.76rem; cursor:pointer; max-width:240px; }
+  .att-btn:hover { background:#e2e8f0; }
+  .att-btn span:last-of-type { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .att-thumb { width:26px; height:26px; object-fit:cover; border-radius:4px; border:1px solid #cbd5e1; flex-shrink:0; }
+  .att-tag { font-family:ui-monospace,monospace; font-size:0.66rem; font-weight:700; padding:1px 5px; border-radius:4px; background:#e2e8f0; color:#334155; }
+  .att-tag.pdf { background:#ffe4e6; color:#9f1239; }
+  .att-tag.doc { background:#e0f2fe; color:#075985; }
+  .att-tag.xls { background:#dcfce7; color:#166534; }
+  .modal { position:fixed; inset:0; background:rgba(15,23,42,.82); display:none; align-items:center; justify-content:center; padding:16px; z-index:99; }
+  .modal.open { display:flex; }
+  .modal-box { background:#fff; border-radius:12px; max-width:92vw; max-height:92vh; display:flex; flex-direction:column; overflow:hidden; }
+  .modal-head { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid var(--line); }
+  .modal-body { padding:14px; overflow:auto; text-align:center; }
+  .modal-body img { max-width:100%; max-height:70vh; border-radius:8px; }
+  .modal-foot { display:flex; justify-content:flex-end; gap:8px; padding:10px 16px; border-top:1px solid var(--line); }
+  .btn { border:1px solid #cbd5e1; background:#f1f5f9; color:var(--ink); border-radius:8px; padding:7px 12px; font-size:0.82rem; font-weight:600; cursor:pointer; text-decoration:none; }
+  .btn-dark { background:var(--ink); color:#fff; border-color:var(--ink); }
+  @media print { body { background:#fff; padding:0; } .no-print { display:none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <header>
+      <div>
+        <h1>HNA Ingeniería VZ — Reporte Ejecutivo Completo</h1>
+        <p class="sub">Sucursal Lechería / Anzoátegui, Venezuela · Informe interactivo con soportes adjuntos</p>
+      </div>
+      <div class="right">
+        <div class="mono"><strong>Emisión:</strong> ${escapeHtml(emissionDate)}</div>
+        <div class="sub">${escapeHtml(d.rangeLabel)}</div>
+        <div class="sub">${attachments.length} ${attachments.length === 1 ? "archivo adjunto incrustado" : "archivos adjuntos incrustados"}</div>
+      </div>
+    </header>
+    <div class="kpis" style="margin-top:14px;">
+      <div class="kpi"><span>Fondos / Aportes</span><strong class="mono">$${formatMoney(d.fondos)}</strong></div>
+      <div class="kpi"><span>Ejecutado (CAPEX/OPEX)</span><strong class="mono">$${formatMoney(d.ejecutado)}</strong></div>
+      <div class="kpi"><span>Saldo Global Disponible</span><strong class="mono">$${formatMoney(d.saldoGlobal)}</strong></div>
+      <div class="kpi"><span>Avance de Apertura</span><strong class="mono">${pctH}% (${doneH}/${d.hits.length})</strong></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Ejecución por Categoría</h2>
+    ${catHtml}
+  </div>
+
+  <div class="card">
+    <h2>Detalle de Movimientos (${d.movs.length})</h2>
+    <p class="sub" style="margin:-6px 0 10px;">Toca cualquier foto o documento para abrirlo o descargarlo.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Fecha / ID</th><th>Tipo / Rubro</th><th>Contraparte / Nota</th><th>Método</th><th class="right">USD Eq.</th><th>Soporte / Adjunto</th></tr></thead>
+        <tbody>${movRows}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Hitos y Avances de Sucursal (${d.hits.length})</h2>
+    <p class="sub" style="margin:-6px 0 10px;">Ordenados de la fecha más nueva a la más vieja. Toca cualquier adjunto para abrirlo.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Fecha</th><th>Frente</th><th>Estado</th><th>Paso / Nota</th><th>Documentos</th></tr></thead>
+        <tbody>${hitoRows}</tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="viewerModal" class="modal no-print" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div><strong id="vTitle">Soporte</strong><div id="vSub" class="sub"></div></div>
+      <button type="button" class="btn" id="vClose">Cerrar ✕</button>
+    </div>
+    <div class="modal-body"><img id="vImg" alt="Vista previa" /></div>
+    <div class="modal-foot"><a id="vDownload" href="#" download class="btn btn-dark">Descargar archivo</a></div>
+  </div>
+</div>
+
+<script id="attachmentsData" type="application/json">${safeJson}</script>
+<script>
+(function() {
+  var atts = JSON.parse(document.getElementById("attachmentsData").textContent || "[]");
+  var modal = document.getElementById("viewerModal");
+  var vImg = document.getElementById("vImg");
+  var vTitle = document.getElementById("vTitle");
+  var vSub = document.getElementById("vSub");
+  var vDl = document.getElementById("vDownload");
+
+  function closeModal() { modal.classList.remove("open"); vImg.removeAttribute("src"); }
+  document.getElementById("vClose").addEventListener("click", closeModal);
+  modal.addEventListener("click", function(e) { if (e.target === modal) closeModal(); });
+  document.addEventListener("keydown", function(e) { if (e.key === "Escape") closeModal(); });
+
+  function dataUrlToBlob(dataUrl) {
+    var parts = dataUrl.split(",");
+    var mime = (parts[0].match(/:(.*?);/) || [])[1] || "application/octet-stream";
+    var bin = atob(parts[1] || "");
+    var arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
+
+  document.addEventListener("click", function(e) {
+    var btn = e.target.closest("[data-att]");
+    if (!btn) return;
+    var att = atts[Number(btn.getAttribute("data-att"))];
+    if (!att || !att.dataUrl) return;
+    var isImg = (att.type && att.type.indexOf("image/") === 0) || att.dataUrl.indexOf("data:image/") === 0;
+    if (isImg) {
+      vTitle.textContent = att.name || "Imagen adjunta";
+      vSub.textContent = att.caption || "";
+      vImg.src = att.dataUrl;
+      vDl.href = att.dataUrl;
+      vDl.download = att.name || "soporte.jpg";
+      modal.classList.add("open");
+      return;
+    }
+    try {
+      var blob = dataUrlToBlob(att.dataUrl);
+      var url = URL.createObjectURL(blob);
+      var isPdf = att.type === "application/pdf" || (att.name || "").toLowerCase().endsWith(".pdf");
+      if (isPdf) {
+        var win = window.open(url, "_blank");
+        if (!win) {
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = att.name || "documento.pdf";
+          a.click();
+        }
+      } else {
+        var a2 = document.createElement("a");
+        a2.href = url;
+        a2.download = att.name || "documento";
+        a2.click();
+      }
+      setTimeout(function() { URL.revokeObjectURL(url); }, 60000);
+    } catch (err) {
+      var fallback = document.createElement("a");
+      fallback.href = att.dataUrl;
+      fallback.download = att.name || "documento";
+      fallback.click();
+    }
+  });
+})();
+</script>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: "text/html;charset=utf-8;" });
+    downloadBlob(blob, `HNA-VZLA-Reporte-${emissionDate}.html`);
+    showToast(`Reporte Completo descargado (${attachments.length} adjuntos)`);
+}
+
 function openReport() {
     renderReportText();
     document.getElementById("reportModal").classList.remove("hidden");
@@ -1379,6 +1660,7 @@ function bindEvents() {
     document.getElementById("btnOpenReport2").addEventListener("click", openReport);
     document.getElementById("btnCloseReport").addEventListener("click", closeReport);
     document.getElementById("btnCopyReport").addEventListener("click", copyReport);
+    document.getElementById("btnExportHtmlReport")?.addEventListener("click", exportInteractiveHtmlReport);
     document.getElementById("btnPrintReport").addEventListener("click", () => {
         buildFormalPrintSheet();
         window.print();
